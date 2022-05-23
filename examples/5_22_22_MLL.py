@@ -69,8 +69,8 @@ def main():
         #Car1 = world.try_spawn_actor(Car1_bp,Car1_spawn_point)
         #Car1.enable_constant_velocity(carla.Vector3D(5,0,0))        
         
-        #waypoint = world.get_map().get_waypoint(carla.Location(x=-41,y=45,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving))
-        #print(waypoint.transform)
+        waypoint = world.get_map().get_waypoint(carla.Location(x=-41,y=45,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving))
+        print(waypoint)
         #world.debug.draw_point(waypoint.transform.location, size=1, color=carla.Color(255,0,0), life_time=0.0)
         
 

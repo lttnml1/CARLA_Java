@@ -20,6 +20,8 @@ import re
 import sys
 import weakref
 
+from sklearn.linear_model import ARDRegression
+
 try:
     import numpy as np
 except ImportError:
@@ -102,7 +104,7 @@ class World(object):
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._actor_filter = args.filter
-        self.restart(args)
+        #self.restart(args)
         #self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.recording_start = 0
@@ -121,48 +123,7 @@ class World(object):
             color = random.choice(blueprint.get_attribute('color').recommended_values)
             blueprint.set_attribute('color', color)
         """
-        blueprints = self.world.get_blueprint_library()
-        blueprint=blueprints.filter("diamondback")[0]
-        blueprint.set_attribute('role_name', 'hero')
-
-        Adversary1_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
-        Adversary1_blueprint.set_attribute('role_name','Adversary1')
-        print(Adversary1_blueprint)
-
-        # Spawn the player.
-        """
-        if self.player is not None:
-            spawn_point = self.player.get_transform()
-            spawn_point.location.z += 2.0
-            spawn_point.rotation.roll = 0.0
-            spawn_point.rotation.pitch = 0.0
-            self.destroy()
-            self.player = self.world.try_spawn_actor(blueprint, spawn_point)
-            self.modify_vehicle_physics(self.player)
-        while self.player is None:
-            if not self.map.get_spawn_points():
-                print('There are no spawn points available in your map/town.')
-                print('Please add some Vehicle Spawn Point to your UE4 scene.')
-                sys.exit(1)
-            spawn_points = self.map.get_spawn_points()
-            spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            self.player = self.world.try_spawn_actor(blueprint, spawn_point)
-            self.modify_vehicle_physics(self.player)
-        """
-        spawn_point = carla.Transform(carla.Location(self._grid.return_location_from_grid(19,19)),carla.Rotation(roll=0,pitch=0,yaw=0))
-        self.player = self.world.try_spawn_actor(blueprint,spawn_point)
-        self.modify_vehicle_physics(self.player)
-        
-
-        A1_spawn_point = carla.Transform(carla.Location(self._grid.return_location_from_grid(7,20)),carla.Rotation(roll=0,pitch=0,yaw=-90))
-        self.Adversary_1 = self.world.try_spawn_actor(Adversary1_blueprint,A1_spawn_point)
-        print(self.Adversary_1)
-        self.modify_vehicle_physics(self.Adversary_1)
-        
-        if self._args.sync:
-            self.world.tick()
-        else:
-            self.world.wait_for_tick()
+       
 
         # Set up the sensors.
         """
@@ -286,9 +247,6 @@ def game_loop(args):
     Main loop of the simulation. It handles updating all the HUD information,
     ticking the agent and, if needed, the world.
     """
-
-    #pygame.init()
-    #pygame.font.init()
     world = None
 
     try:
@@ -309,14 +267,24 @@ def game_loop(args):
 
             traffic_manager.set_synchronous_mode(True)
 
-        #display = pygame.display.set_mode(
-        #    (args.width, args.height),
-        #    pygame.HWSURFACE | pygame.DOUBLEBUF)
-
-        #hud = HUD(args.width, args.height)
         grid = Grid(client.get_world(),-33,-61,4,38, draw_time = 20)
-        loc = grid.return_location_from_grid(4,1,draw=True)
+        loc = grid.return_location_from_grid(4,1)
         world = World(client.get_world(), grid, args)#hud, args)
+
+        blueprints = world.world.get_blueprint_library()
+        blueprint=blueprints.filter("diamondback")[0]
+        blueprint.set_attribute('role_name', 'hero')
+
+        Adversary1_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
+        Adversary1_blueprint.set_attribute('role_name','Adversary1')
+        print(Adversary1_blueprint)
+
+        
+        
+        if world._args.sync:
+            world.world.tick()
+        else:
+            world.world.wait_for_tick()
         spectator = world.world.get_spectator()
         
         #middle of the grid
@@ -331,24 +299,50 @@ def game_loop(args):
         # Set the agent destination
         #spawn_points = world.map.get_spawn_points()
         #destination = random.choice(spawn_points).location
-        d1 = grid.return_location_from_grid(20,20)
-        d2 = grid.return_location_from_grid(20,1)
-        d3 = grid.return_location_from_grid(1,20)
-        d4 = grid.return_location_from_grid(1,1)
-        destination_array=[d1,d2,d3,d4]
+        
+        #destination_array=[grid.return_location_from_grid(3,3),grid.return_location_from_grid(19,19), grid.return_location_from_grid(14,12),grid.return_location_from_grid(17,3)]
+        #speed_array=[30,10,20,8]
         #destination = random.choice(destination_array)
-        destination = grid.return_location_from_grid(4,1, draw=True)
-        agent = SimpleAgent(world.player, destination, target_speed=80)
+        with open(args.file) as f:
+            lines = f.readlines()
+        
+        point_array=[]
+        speed_array=[]
+        destination_array=[]
+        for line in lines:
+            sp = line.split(',')
+            point_array.append(sp[1])
+            speed_array.append(float(sp[2])*4.0)
+        
+        for point in point_array:
+            i = math.floor(int(point)/20)
+            j = int(point) % 20
+            dest = grid.return_location_from_grid(i,j)
+            destination_array.append(dest)
+        # Spawn the player.
+        
+        spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
+        world.player = world.world.try_spawn_actor(blueprint,spawn_point)
+        world.modify_vehicle_physics(world.player)
+        
+
+        A1_spawn_point = carla.Transform(carla.Location(grid.return_location_from_grid(8,20)),carla.Rotation(roll=0,pitch=0,yaw=-90))
+        world.Adversary_1 = world.world.try_spawn_actor(Adversary1_blueprint,A1_spawn_point)
+        print(world.Adversary_1)
+        world.modify_vehicle_physics(world.Adversary_1)
+
+
+        dest_index = 1
+        d = destination_array[dest_index]
+        grid.draw_location_on_grid(d, draw_time = 30)
+        agent = SimpleAgent(world.player, destination_array[dest_index], target_speed=speed_array[dest_index]*1.1)
         
         
-        agent2 = BasicAgent(world.Adversary_1)
-        agent2_dest = grid.return_location_from_grid(5,0)
+        agent2 = BasicAgent(world.Adversary_1, target_speed = 18)
+        agent2_dest = grid.return_location_from_grid(8,0)
         waypoint = world.world.get_map().get_waypoint(agent2_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
         print(waypoint)
-        
-        
-        
-        #agent2.set_destination(waypoint)
+        agent2.set_destination(waypoint.transform.location)
         
        
 
@@ -368,16 +362,23 @@ def game_loop(args):
             #pygame.display.flip()
             vel = world.player.get_velocity()
             speed = 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
-            print(f"Bike/Player speed: {speed}")
+            #print(f"Bike/Player speed: {speed}")
             
         
             if agent.done():
                 if args.loop:
-                    print("The target has been reached, searching for another target")
-                    d = random.choice(destination_array)
+                    print(f"Speed was supposed to be {speed_array[dest_index]}, it is actually {speed}")
+                    if dest_index == (len(destination_array) -2):
+                        print("out of destinations")
+                        break
+                    print(f"Target {dest_index} has been reached, setting target {dest_index+1}")
+                    dest_index = dest_index+1
+                    d = destination_array[dest_index]
+                    grid.draw_location_on_grid(d, draw_time = 20)
                     agent.set_destination(d)
-                    agent.set_target_speed(60)
-                    print(f"Setting target speed to {d.x}")
+                    s =speed_array[dest_index] 
+                    agent.set_target_speed(s*1.1)
+                    print(f"Setting target speed to {s} at destination {d}")
                     #world.hud.notification("The target has been reached, searching for another target", seconds=4.0)
                     
                 else:
@@ -464,6 +465,11 @@ def main():
         help='Set seed for repeating executions (default: None)',
         default=None,
         type=int)
+    argparser.add_argument(
+        '--file',
+        help='file name to read from',
+        default=None,
+        type=str)
 
     args = argparser.parse_args()
 

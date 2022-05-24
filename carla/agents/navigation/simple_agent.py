@@ -44,6 +44,9 @@ class SimpleAgent(object):
         self._k_d = 0.0
         self._dt = 0.03
 
+        self._max_throt = 1.0
+        self._max_brake = 0.3
+
         self._vehicle = vehicle
         self._world = self._vehicle.get_world()
         self._map = self._world.get_map()
@@ -97,7 +100,8 @@ class SimpleAgent(object):
         Changes the target speed of the agent
             :param speed (float): target speed in Km/h
         """
-        self._local_planner.set_speed(speed)
+        #self._local_planner.set_speed(speed)
+        self._target_speed = speed
 
     def follow_speed_limits(self, value=False):
         """
@@ -193,14 +197,38 @@ class SimpleAgent(object):
         #if hazard_detected:
         #    control = self.add_emergency_stop(control)
         
-        throttle = 0.0
-        if(vehicle_speed< self._target_speed): throttle = 1.0
-        else: throttle = .2
+        throttle, brake = self.pedal(self._target_speed)
+        
         waypoint = self._end
         steer = self.steer(waypoint, self._vehicle.get_transform())
-        ctrl = carla.VehicleControl(throttle = 1.0, steer = steer)
+        ctrl = carla.VehicleControl(throttle = throttle, steer = steer, brake = brake)
 
         return ctrl
+
+    def pedal(self,target_speed):
+        self._error_buffer = deque(maxlen=10)
+        current_speed = get_speed(self._vehicle)
+        error = target_speed - current_speed
+        self._error_buffer.append(error)
+
+        if len(self._error_buffer) >= 2:
+            _de = (self._error_buffer[-1] - self._error_buffer[-2]) / self._dt
+            _ie = sum(self._error_buffer) * self._dt
+        else:
+            _de = 0.0
+            _ie = 0.0
+
+        acceleration = np.clip((self._k_p * error) + (self._k_d * _de) + (self._k_i * _ie), -1.0, 1.0)
+
+        if acceleration >= 0.0:
+            throttle = min(acceleration, self._max_throt)
+            brake = 0.0
+        else:
+            throttle = 0.0
+            brake = min(abs(acceleration), self._max_brake)
+        
+        return (throttle, brake)
+
     def steer(self, waypoint, vehicle_transform):
         
         e_buffer = deque(maxlen=10)

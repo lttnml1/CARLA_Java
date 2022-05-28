@@ -56,7 +56,6 @@ from agents.navigation.simple_agent import SimpleAgent
 # -- Global functions ----------------------------------------------------------
 # ==============================================================================
 
-
 def find_weather_presets():
     """Method to find weather presets"""
     rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
@@ -132,17 +131,60 @@ class World(object):
     def destroy(self):
         """Destroys all actors"""
         actors = [
-            self.ego,self.Adversary_1]
+            self.ego,
+            self.Adversary_1,
+            self.collision_sensor.sensor]
         for actor in actors:
             if actor is not None:
                 actor.destroy()
+# ==============================================================================
+# -- CollisionSensor -----------------------------------------------------------
+# ==============================================================================
+class CollisionSensor(object):
+    """ Class for collision sensors"""
+
+    def __init__(self, parent_actor):
+        """Constructor method"""
+        self.sensor = None
+        self.history = []
+        self._parent = parent_actor
+        world = self._parent.get_world()
+        blueprint = world.get_blueprint_library().find('sensor.other.collision')
+        self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._parent)
+        # We need to pass the lambda a weak reference to
+        # self to avoid circular reference.
+        weak_self = weakref.ref(self)
+        self.sensor.listen(lambda event: CollisionSensor._on_collision(weak_self, event))
+
+    def get_collision_history(self):
+        """Gets the history of collisions"""
+        history = collections.defaultdict(int)
+        for frame, intensity in self.history:
+            history[frame] += intensity
+        return history
+
+    @staticmethod
+    def _on_collision(weak_self, event):
+        """On collision method"""
+        self = weak_self()
+        if not self:
+            return
+        actor_type = get_actor_display_name(event.other_actor)
+        #print('Collision with %r' % actor_type)
+        impulse = event.normal_impulse
+        intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
+        self.history.append((event.frame, intensity))
+        if len(self.history) > 4000:
+            self.history.pop(0)
+        global COLLISION
+        COLLISION = True
 
 # ==============================================================================
 # -- Grid ---------------------------------------------------------------
 # ==============================================================================
 
 class Grid(object):
-    def __init__(self, world, top: float, bottom: float, left: float, right: float, draw_time: int = 10):
+    def __init__(self, world, top: float, bottom: float, left: float, right: float, draw_time: int = 0):
         #this will be a 20x20 grid
         """
         top/bottom are x values
@@ -162,7 +204,7 @@ class Grid(object):
         self.right = right
         self.box_width = abs(self.right - self.left)/20
         self.box_height = abs(self.top - self.bottom)/20
-        Grid.draw_grid(self, draw_time) 
+        if(draw_time > 0): Grid.draw_grid(self, draw_time) 
 
     def return_location_from_grid(self, i: int, j: int, draw: bool = False):
         center_point_y = self.left + self.box_width*(j-1) + self.box_width/2
@@ -221,7 +263,7 @@ def game_loop(args):
             if(args.no_render): settings.no_rendering_mode = True
             sim_world.apply_settings(settings)
 
-        grid = Grid(client.get_world(),-33,-61,4,38, draw_time = 10)   
+        grid = Grid(client.get_world(),-33,-61,4,38)#, draw_time = 10)   
         world = World(client.get_world(), grid, args)
 
         #set the view to the middle of the grid
@@ -237,7 +279,9 @@ def game_loop(args):
         for line in lines:
             sp = line.split(',')
             point_array.append(sp[1])
-            speed_array.append(float(sp[2])*5.0) 
+            speed = float(sp[2]) * 3.6
+            if(speed < 1.0): speed_array.append(1.0)
+            else: speed_array.append(speed) 
         for point in point_array:
             i = math.floor(int(point)/20)
             j = int(point) % 20
@@ -256,14 +300,15 @@ def game_loop(args):
 
         Adversary1_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
         world.Adversary_1 = world.world.try_spawn_actor(Adversary1_blueprint,Adversary1_spawn_point)
-        grid.draw_location_on_grid(destination_array[0], draw_time = 20)
-        print(f"Adversary 1 has been spawned {world.Adversary_1}")
+        #grid.draw_location_on_grid(destination_array[0], draw_time = 20)
+        #print(f"Adversary 1 has been spawned {world.Adversary_1}")
         world.modify_vehicle_physics(world.Adversary_1)
         
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
-        print(f"Ego has been spawned {world.ego}")
-        world.modify_vehicle_physics(world.ego)       
+        #print(f"Ego has been spawned {world.ego}")
+        world.modify_vehicle_physics(world.ego)   
+        world.collision_sensor = CollisionSensor(world.Adversary_1)    
         
         if world._args.sync:
             world.world.tick()
@@ -272,13 +317,13 @@ def game_loop(args):
         
         #now intialize the agents
         dest_index = 1
-        Adversary1_agent = SimpleAgent(world.Adversary_1, destination_array[dest_index], target_speed=speed_array[dest_index]*1.102)
-        grid.draw_location_on_grid(destination_array[1], draw_time = 20)
+        Adversary1_agent = SimpleAgent(world.Adversary_1, destination_array[dest_index], target_speed=speed_array[dest_index])
+        #grid.draw_location_on_grid(destination_array[1], draw_time = 20)
                 
-        ego_agent = BasicAgent(world.ego, target_speed = 11)
+        ego_agent = BasicAgent(world.ego, target_speed = 7)
         ego_dest = carla.Location(x=-40,y=0,z=0)
         waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
-        print(waypoint)
+        #print(waypoint)
         ego_agent.set_destination(waypoint.transform.location)
         
         
@@ -291,28 +336,43 @@ def game_loop(args):
 
             Adversary1_speed = world.get_vehicle_speed(world.Adversary_1)
             ego_speed = world.get_vehicle_speed(world.ego)    
-        
+
             ego_loca = world.ego.get_location()
+            Adversary1_loca = world.Adversary_1.get_location()
+            distance = math.sqrt((ego_loca.x - Adversary1_loca.x)**2 + (ego_loca.y - Adversary1_loca.y)**2)
+            #print(f"Distance between the two is {distance:8.4f}")
+            
+            global MIN_DISTANCE
+            if(distance < MIN_DISTANCE):
+                MIN_DISTANCE = distance
+            if(COLLISION):
+                #print("Ending simulation due to collision")
+                MIN_DISTANCE = -1
+                #print(f"Minimum distance was: {MIN_DISTANCE}")
+                print(f"{MIN_DISTANCE:8.6f}")
+                break
+
             if Adversary1_agent.done():
                 if args.loop:
-                    print(world.world.get_snapshot().timestamp)
-                    print(f"Adversary 1 has reached destination {dest_index}:\tSpeed was supposed to be {speed_array[dest_index]}, it is actually {Adversary1_speed}")
-                    
+                    #print(world.world.get_snapshot().timestamp)
+                    #print(f"Adversary 1 has reached destination {dest_index}:\tSpeed was supposed to be {speed_array[dest_index]}, it is actually {Adversary1_speed}")
                     if(ego_loca.y > grid.left): 
                         i,j = grid.return_grid_from_location(world.ego.get_location())
-                        print(f"Ego location: ({i},{j}), speed: {ego_speed}")                                
-                    if dest_index == (len(destination_array) -2):
-                        print("Adversary 1's route is complete")
+                        #print(f"Ego location: ({i},{j}), speed: {ego_speed}")                                
+                    if dest_index == (len(destination_array) - 2):
+                        #print("Adversary 1's route is complete")
+                        #print(f"Minimum distance was: {MIN_DISTANCE:8.6f}")
+                        print(f"{MIN_DISTANCE:8.6f}")
                         break
                     dest_index = dest_index+1
                     new_dest = destination_array[dest_index]
-                    grid.draw_location_on_grid(new_dest, draw_time = 10)
+                    #grid.draw_location_on_grid(new_dest, draw_time = 10)
                     Adversary1_agent.set_destination(new_dest)
                     new_speed =speed_array[dest_index] 
-                    Adversary1_agent.set_target_speed(new_speed*1.102)
+                    Adversary1_agent.set_target_speed(new_speed)
                                         
                 else:
-                    print("The target has been reached, stopping the simulation")
+                    #print("The target has been reached, stopping the simulation")
                     break
             
             control = Adversary1_agent.run_step()
@@ -324,12 +384,11 @@ def game_loop(args):
                 world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))        
 
     finally:
-
         if world is not None:
             settings = world.world.get_settings()
             settings.synchronous_mode = False
             settings.fixed_delta_seconds = None
-            settings.no_rendering_mode = False
+            #settings.no_rendering_mode = False
             world.world.apply_settings(settings)
             
 
@@ -382,11 +441,16 @@ def main():
     log_level = logging.INFO
     logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
-    logging.info('listening to server %s:%s', args.host, args.port)
+    #logging.info('listening to server %s:%s', args.host, args.port)
 
-    print(__doc__)
+    #print(__doc__)
 
+    
     try:
+        global COLLISION
+        COLLISION = False
+        global MIN_DISTANCE
+        MIN_DISTANCE = 999.99999
         game_loop(args)
 
     except KeyboardInterrupt:

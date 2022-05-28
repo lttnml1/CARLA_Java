@@ -38,7 +38,7 @@ class SimpleAgent(object):
 
     def run_step(self):
         """Execute one step of navigation."""
-        vehicle_speed = get_speed(self._vehicle) / 3.6
+        #vehicle_speed = get_speed(self._vehicle) / 3.6
 
         throttle, brake = self.pedal(self._target_speed)        
         waypoint = self._end

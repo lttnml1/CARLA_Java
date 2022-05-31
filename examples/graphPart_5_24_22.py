@@ -279,8 +279,8 @@ def game_loop(args):
         for line in lines:
             sp = line.split(',')
             point_array.append(sp[1])
-            speed = float(sp[2]) * 3.6
-            if(speed < 1.0): speed_array.append(1.0)
+            speed = float(sp[2]) * 3.6 * 5
+            if(speed < 1.0): speed_array.append(5.0)
             else: speed_array.append(speed) 
         for point in point_array:
             i = math.floor(int(point)/20)

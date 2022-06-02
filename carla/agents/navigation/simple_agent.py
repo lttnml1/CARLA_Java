@@ -1,4 +1,4 @@
-# SImple Agent
+# Simple Agent
 
 import carla
 from enum import Enum
@@ -120,4 +120,4 @@ class SimpleAgent(object):
         """Check whether the agent has reached its destination."""
         diff_x = self._vehicle.get_transform().location.x - self._end.x
         diff_y = self._vehicle.get_transform().location.y - self._end.y
-        return math.sqrt(diff_x**2 + diff_y**2) < 0.5
+        return math.sqrt(diff_x**2 + diff_y**2) < 1.0

@@ -48,8 +48,9 @@ except IndexError:
 import carla
 from carla import ColorConverter as cc
 
-from agents.navigation.basic_agent import BasicAgent 
-from agents.navigation.simple_agent import SimpleAgent
+from agents.navigation.basic_agent import BasicAgent
+from agents.navigation.simple_agent import SimpleAgent 
+
 
 
 # ==============================================================================
@@ -279,8 +280,8 @@ def game_loop(args):
         for line in lines:
             sp = line.split(',')
             point_array.append(sp[1])
-            speed = float(sp[2]) * 3.6 * 5
-            if(speed < 1.0): speed_array.append(5.0)
+            speed = float(sp[2]) * 3.6 * 10
+            if(speed < 1.0): speed_array.append(10.0)
             else: speed_array.append(speed) 
         for point in point_array:
             i = math.floor(int(point)/20)

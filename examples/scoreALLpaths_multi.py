@@ -67,7 +67,7 @@ def main():
         port = 2000
         i = 1
         for dir in dirs_list:
-            command = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/scoreALLPaths.py --path " + dir + "\ --scores " + "c:\\data\\Test\\ScoresTest" + os.path.basename(dir) + ".txt" + " --port " + str(port + 4*i)
+            command = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/scoreALLPaths.py --path " + dir + "\ --scores " + "c:\\data\\Adversary1\\ScoresTest" + os.path.basename(dir) + ".txt" + " --port " + str(port + 4*i)
             commands.append(command) 
             i+=1
         

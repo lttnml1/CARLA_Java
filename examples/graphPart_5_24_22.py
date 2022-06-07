@@ -301,7 +301,7 @@ def game_loop(args):
 
         Adversary1_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
         world.Adversary_1 = world.world.try_spawn_actor(Adversary1_blueprint,Adversary1_spawn_point)
-        #grid.draw_location_on_grid(destination_array[0], draw_time = 20)
+        #grid.draw_location_on_grid(destination_array[0], draw_time = 5)
         #print(f"Adversary 1 has been spawned {world.Adversary_1}")
         world.modify_vehicle_physics(world.Adversary_1)
         
@@ -319,7 +319,7 @@ def game_loop(args):
         #now intialize the agents
         dest_index = 1
         Adversary1_agent = SimpleAgent(world.Adversary_1, destination_array[dest_index], target_speed=speed_array[dest_index])
-        #grid.draw_location_on_grid(destination_array[1], draw_time = 20)
+        #grid.draw_location_on_grid(destination_array[1], draw_time = 5)
                 
         ego_agent = BasicAgent(world.ego, target_speed = 7)
         ego_dest = carla.Location(x=-40,y=0,z=0)
@@ -367,7 +367,7 @@ def game_loop(args):
                         break
                     dest_index = dest_index+1
                     new_dest = destination_array[dest_index]
-                    #grid.draw_location_on_grid(new_dest, draw_time = 10)
+                    #grid.draw_location_on_grid(new_dest, draw_time = 3)
                     Adversary1_agent.set_destination(new_dest)
                     new_speed =speed_array[dest_index] 
                     Adversary1_agent.set_target_speed(new_speed)

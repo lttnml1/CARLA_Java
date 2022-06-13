@@ -384,6 +384,13 @@ def categorical_game_loop(args):
         #waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
         #ego_agent.set_destination(waypoint.transform.location)
         
+        Adv3_dest = grid.return_location_from_grid(16,14)
+
+        global PATH_DISTANCE
+        if(destination_array[len(destination_array)-1] != Adv3_dest):
+            PATH_DISTANCE += 999
+            print(f"{PATH_DISTANCE:8.6f}")
+            return 0
         
         while True:
             if args.sync:
@@ -401,15 +408,9 @@ def categorical_game_loop(args):
             #distance = math.sqrt((ego_loca.x - Adversary1_loca.x)**2 + (ego_loca.y - Adversary1_loca.y)**2)
             #print(f"Distance between the two is {distance:8.4f}")
                
-            global MIN_DISTANCE
-            global PATH_DISTANCE
-            #if(distance < MIN_DISTANCE):
-            #    MIN_DISTANCE = distance
             if(COLLISION):
                 #print("Ending simulation due to collision")
-                #MIN_DISTANCE = -1
-                #print(f"Minimum distance was: {MIN_DISTANCE}")
-                PATH_DISTANCE += 100
+                PATH_DISTANCE += 999
                 print(f"{PATH_DISTANCE:8.6f}")
                 break
             
@@ -424,7 +425,6 @@ def categorical_game_loop(args):
                     if dest_index == (len(destination_array) - 1):
                         #print("Adversary 3's route is complete")
                         print(f"{PATH_DISTANCE:8.6f}")
-                        #print(f"{MIN_DISTANCE:8.6f}")
                         break
                     dest_index = dest_index+1
                     new_dest = destination_array[dest_index]
@@ -485,6 +485,9 @@ def normal_game_loop(args):
         grid = Grid(client.get_world(),-65,-100,-10,30)#, draw_time = 60)   
         world = World(client.get_world(), grid, args)
 
+        #grid.return_location_from_grid(0,5,60)
+        #grid.return_location_from_grid(16,14,60)
+
         #set the view to the middle of the grid
         spectator = world.world.get_spectator()
         spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
@@ -498,14 +501,18 @@ def normal_game_loop(args):
         for line in lines:
             sp = line.split(',')
             point_array.append(sp[1])
-            speed = float(sp[2]) * 3.6 * 10
-            if(speed < 1.0): speed_array.append(10.0)
-            else: speed_array.append(speed) 
+            if ("NaN" in sp[2] or float(sp[2])<0): speed_array.append(-999.000)
+            else: 
+                speed = float(sp[2]) * 3.6# * 10
+                #if(speed < 1.0): speed_array.append(10.0)
+                #else: speed_array.append(speed) 
+                speed_array.append(speed)
         for point in point_array:
             i = math.floor(int(point)/20)
             j = int(point) % 20
             dest = grid.return_location_from_grid(i,j)
             destination_array.append(dest)
+        
         
         
         # Spawn the actors
@@ -537,11 +544,22 @@ def normal_game_loop(args):
         Adversary3_agent = SimpleAgent(world.Adversary_3, destination_array[dest_index], target_speed=8)
         #grid.draw_location_on_grid(destination_array[1], draw_time = 5)
                 
-        ego_agent = BasicAgent(world.ego, target_speed = 8,  opt_dict={'ignore_traffic_lights':'True'})
-        ego_dest = grid.return_location_from_grid(8,0)#carla.Location(x=-80,y=-20,z=0)
+        ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
+        ego_dest = grid.return_location_from_grid(8,0)
         waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
         ego_agent.set_destination(waypoint.transform.location)
+        #grid.draw_location_on_grid(waypoint.transform.location)
         
+        
+        for spd in speed_array:
+            if spd < 0:
+                global TIME_DIFF
+                TIME_DIFF = 999.000
+                print(f"{TIME_DIFF:8.6f}")
+                return 0
+
+        global EGO_DONE
+        EGO_DONE = False
         
         while True:
             if args.sync:
@@ -558,15 +576,18 @@ def normal_game_loop(args):
             distance = math.sqrt((ego_loca.x - Adversary3_loca.x)**2 + (ego_loca.y - Adversary3_loca.y)**2)
             #print(f"Distance between the two is {distance:8.4f}")
                
-            global MIN_DISTANCE
-            if(distance < MIN_DISTANCE):
-                MIN_DISTANCE = distance
             if(COLLISION):
                 #print("Ending simulation due to collision")
-                MIN_DISTANCE = -1
+                TIME_DIFF = -1
                 #print(f"Minimum distance was: {MIN_DISTANCE}")
-                print(f"{MIN_DISTANCE:8.6f}")
+                print(f"{TIME_DIFF:8.6f}")
                 break
+
+
+            if ego_agent.is_done(waypoint.transform.location) and not EGO_DONE:
+                ego_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
+                #print(ego_done_time)
+                EGO_DONE = True
             
             if Adversary3_agent.done():
                 if args.loop:
@@ -579,7 +600,12 @@ def normal_game_loop(args):
                     if dest_index == (len(destination_array) - 1):
                         #print("Adversary 3's route is complete")
                         #print(f"{PATH_DISTANCE:8.6f}")
-                        print(f"{MIN_DISTANCE:8.6f}")
+                        if(not EGO_DONE):
+                            TIME_DIFF = 100
+                        else:
+                            Adv3_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
+                            TIME_DIFF = Adv3_done_time - ego_done_time
+                        print(f"{TIME_DIFF:8.6f}")
                         break
                     dest_index = dest_index+1
                     new_dest = destination_array[dest_index]
@@ -596,10 +622,7 @@ def normal_game_loop(args):
             control = Adversary3_agent.run_step()
             control.manual_gear_shift = False
             world.Adversary_3.apply_control(control)
-            if (ego_loca.y > grid.left-5):
-                world.ego.apply_control(ego_agent.run_step())   
-            else:
-                world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))        
+            world.ego.apply_control(ego_agent.run_step())     
         
 
     
@@ -667,8 +690,8 @@ def main():
     try:
         global COLLISION
         COLLISION = False
-        global MIN_DISTANCE
-        MIN_DISTANCE = 999.99999
+        global TIME_DIFF
+        TIME_DIFF = 0.0
         global PATH_DISTANCE
         PATH_DISTANCE = 0.0
         if "Categorical" in args.file:

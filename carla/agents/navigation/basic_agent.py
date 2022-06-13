@@ -10,6 +10,7 @@ It can also make use of the global route planner to follow a specifed route
 """
 
 import carla
+import math
 from enum import Enum
 from shapely.geometry import Polygon
 
@@ -186,6 +187,11 @@ class BasicAgent(object):
     def done(self):
         """Check whether the agent has reached its destination."""
         return self._local_planner.done()
+    
+    def is_done(self, _end):
+        diff_x = self._vehicle.get_transform().location.x - _end.x
+        diff_y = self._vehicle.get_transform().location.y - _end.y
+        return math.sqrt(diff_x**2 + diff_y**2) < 0.5
 
     def ignore_traffic_lights(self, active=True):
         """(De)activates the checks for traffic lights"""

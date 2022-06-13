@@ -43,12 +43,12 @@ def main():
         for dirName, subdirList, fileList in os.walk(path):
             fileList.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
             for fileName in fileList:
-                call_string2 = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/graphPart_5_24_22.py --sync --loop --port " + str(args.port) + " --file " + path + fileName + " --no_render"
+                call_string2 = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/Adversary3_Scenario.py --sync --loop --port " + str(args.port) + " --file " + path + fileName + " --no_render"
                 call_string = "/home/littonml1/anaconda3/envs/carla/bin/python -W ignore /home/littonml1/CARLA_Java/examples/graphPart_5_24_22.py --sync --loop --port " + str(args.port) + " --file /home/littonml1/python_proj/Adversary1/" + fileName + " --no_render"
                 #get return value of subprocess call
                 result=subprocess.Popen(call_string2, shell = True, stdout=subprocess.PIPE).communicate()[0].decode('ascii').strip()       
                 #append it to a file
-                write_string = fileName.split("_")[1]+":"+result+"\n"
+                write_string = fileName.split("_")[2]+":"+result+"\n"
                 #f = open("/home/littonml1/python_proj/000_Adversary1_Scores", "a")
                 #f = open("C:\\data\\000_Adversary1_Scores.txt", "a")
                 if(not result): 

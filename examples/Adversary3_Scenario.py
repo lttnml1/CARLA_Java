@@ -482,7 +482,9 @@ def normal_game_loop(args):
             if(args.no_render): settings.no_rendering_mode = True
             sim_world.apply_settings(settings)
 
-        grid = Grid(client.get_world(),-65,-100,-10,30)#, draw_time = 60)   
+         
+        if(args.debug):  grid = Grid(client.get_world(),-65,-100,-10,30, draw_time = 10)
+        else: grid = Grid(client.get_world(),-65,-100,-10,30)
         world = World(client.get_world(), grid, args)
 
         #grid.return_location_from_grid(0,5,60)
@@ -526,7 +528,7 @@ def normal_game_loop(args):
 
         Adversary3_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
         world.Adversary_3 = world.world.try_spawn_actor(Adversary3_blueprint,Adversary3_spawn_point)
-        #grid.draw_location_on_grid(destination_array[0], draw_time = 5)
+        if(args.debug): grid.draw_location_on_grid(destination_array[0], draw_time = 5)
         world.modify_vehicle_physics(world.Adversary_3)
         
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
@@ -542,13 +544,13 @@ def normal_game_loop(args):
         #now intialize the agents
         dest_index = 1
         Adversary3_agent = SimpleAgent(world.Adversary_3, destination_array[dest_index], target_speed=8)
-        #grid.draw_location_on_grid(destination_array[1], draw_time = 5)
+        if(args.debug): grid.draw_location_on_grid(destination_array[1], draw_time = 5)
                 
         ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
         ego_dest = grid.return_location_from_grid(8,0)
         waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
         ego_agent.set_destination(waypoint.transform.location)
-        #grid.draw_location_on_grid(waypoint.transform.location)
+        if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)
         
         
         for spd in speed_array:
@@ -609,7 +611,11 @@ def normal_game_loop(args):
                         break
                     dest_index = dest_index+1
                     new_dest = destination_array[dest_index]
-                    #grid.draw_location_on_grid(new_dest, draw_time = 3)
+                    if(args.debug):
+                        if(world.is_in_crosswalk(new_dest)):
+                            world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(0,0,255),life_time=3)
+                        else: 
+                            grid.draw_location_on_grid(new_dest, draw_time = 3)
                     
                     Adversary3_agent.set_destination(new_dest)
                     new_speed =speed_array[dest_index] 
@@ -675,6 +681,11 @@ def main():
         help='file name to read from',
         default=None,
         type=str)
+    argparser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Draws graph and points')
+
 
     args = argparser.parse_args()
 

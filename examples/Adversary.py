@@ -50,26 +50,22 @@ from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.simple_agent import SimpleAgent
 
 from enum import Enum
-
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 # ==============================================================================
 # -- Adversary ---------------------------------------------------------------
 # ==============================================================================
-class Distribution_Type(Enum):
-    NORMAL = 1
-    CATEGORICAL = 2
 
 class Adversary():
-    def __init__(self, distribution_type: Distribution_Type):
-        self.distribution_type = distribution_type
-        self.point_array = []
-        self.speed_array = []
-        self.accel_array = []
-        self.destination_array = []
-    def read_data_from_file(file):
-        pass
-    def compute_score():
-        pass
+
+    def __init__(self, point_array, speed_array, accel_array, dest_array, cost):
+        self.point_array = point_array
+        self.speed_array = speed_array
+        self.accel_array = accel_array
+        self.dest_array = dest_array
+        self.cost = cost
+
 
 # ==============================================================================
 # -- World ---------------------------------------------------------------
@@ -92,8 +88,71 @@ class World(object):
             sys.exit(1)
         
         self.ego = None
-        self.Adversary_1 = None
+        self.Adversary = None
         self.collision_sensor = None
+    
+    def get_crosswalk(self, draw_time: int = 0):
+        crosswalks = self.map.get_crosswalks()
+        crosswalk_array = []
+
+        single_crosswalk = []
+        for i in range(0,len(crosswalks)):
+            single_crosswalk.append(crosswalks[i])
+            if(len(single_crosswalk) > 1):
+                if(single_crosswalk[0] == single_crosswalk[-1]):
+                    crosswalk_array.append(single_crosswalk)
+                    single_crosswalk = []
+        
+        #of_interest = [crosswalk_array[2],crosswalk_array[44],crosswalk_array[45],crosswalk_array[46], crosswalk_array[47]]
+        if(draw_time > 0):
+            for cw in crosswalk_array:    
+                for j in range (0,len(cw)-1):
+                    self.world.debug.draw_line(cw[j]+carla.Location(z=1), cw[j+1]+carla.Location(z=1), thickness=0.2, color=carla.Color(255,0,0), life_time=draw_time)
+        
+        return crosswalk_array
+        # Location(x=-97.195564, y=23.552834, z=0.038310)
+        # Location(x=-94.079308, y=24.415840, z=0.031020)
+        # Location(x=-67.668266, y=5.793464, z=-0.064348)
+        # Location(x=-70.731575, y=4.893159, z=-0.058300)       
+        
+    
+    def is_in_crosswalk(self, actor_location):
+        point = Point(actor_location.x,actor_location.y)
+
+        outer_polygon = []
+        outer_polygon.append(carla.Location(x=-97,y=26,z=1))
+        outer_polygon.append(carla.Location(x=-68.5,y=5.5,z=1))
+        outer_polygon.append(carla.Location(x=-68.5,y=-7.5,z=1))
+        outer_polygon.append(carla.Location(x=-96,y=-7.5,z=1))
+        outer_polygon.append(carla.Location(x=-97,y=26,z=1))
+
+        #for j in range (0,len(outer_polygon)-1):
+        #    self.world.debug.draw_line(outer_polygon[j]+carla.Location(z=1), outer_polygon[j+1]+carla.Location(z=1), thickness=0.2, color=carla.Color(255,0,0), life_time=20)
+        
+        inner_polygon = []
+        inner_polygon.append(carla.Location(x=-94,y=20,z=1))
+        inner_polygon.append(carla.Location(x=-71.6,y=3.6,z=1))
+        inner_polygon.append(carla.Location(x=-71.6,y=-4.5,z=1))
+        inner_polygon.append(carla.Location(x=-93.3,y=-4.5,z=1))
+        inner_polygon.append(carla.Location(x=-94,y=20,z=1))
+
+        #for j in range (0,len(inner_polygon)-1):
+        #    self.world.debug.draw_line(inner_polygon[j]+carla.Location(z=1), inner_polygon[j+1]+carla.Location(z=1), thickness=0.2, color=carla.Color(0,255,0), life_time=20)
+        inner_polygon_points = []
+        for pt in inner_polygon:
+            inner_polygon_points.append((pt.x,pt.y))
+        outer_polygon_points = []
+        for pt in outer_polygon:
+            outer_polygon_points.append((pt.x,pt.y))
+        polygon_outer = Polygon(outer_polygon_points)
+        polygon_inner = Polygon(inner_polygon_points)
+        if polygon_outer.contains(point):
+            if polygon_inner.contains(point):
+                return False
+            else:
+                return True
+        else:
+            return False
     
     @staticmethod
     def get_2D_distance(loc1, loc2):
@@ -110,7 +169,7 @@ class World(object):
         """Destroys all actors"""
         actors = [
             self.ego,
-            self.Adversary_1,
+            self.Adversary,
             self.collision_sensor.sensor]
         for actor in actors:
             if actor is not None:
@@ -157,8 +216,7 @@ class CollisionSensor(object):
             self.history.pop(0)
         #if "vehicle" in str(event.other_actor.type_id):
         #    print(f"Collision with {event.other_actor.type_id}")
-        global COLLISION
-        COLLISION = True
+        
 
 # ==============================================================================
 # -- Grid ---------------------------------------------------------------
@@ -244,37 +302,48 @@ def game_loop(args):
         if(args.no_render): settings.no_rendering_mode = True
         sim_world.apply_settings(settings)
 
-        grid = Grid(client.get_world(),-33,-61,4,38, draw_time = 30)   
+        
+        """
+        if(args.debug): grid = Grid(client.get_world(),-33,-61,4,38, draw_time = 30)
+        else: grid = Grid(client.get_world(),-33,-61,4,38)     
         world = World(client.get_world(), grid, args)
 
         #set the view to the middle of the grid
         spectator = world.world.get_spectator()
         spectator.set_transform(carla.Transform(carla.Location(x=-47,y=21,z=30),carla.Rotation(roll=0, pitch=-90,yaw=0)))
-        
-        #figure out what kind of distribution type it is
-        adversary = None
-        if "Normal" in str(args.file):
-            adversary = Adversary(Distribution_Type.NORMAL)
-        if "Categorical" in str(args.file):
-            adversary = Adversary(Distribution_Type.CATEGORICAL)
-        else:
-            print("This file type is unrecognized!!")
+        """
 
+        if(args.debug): grid = Grid(client.get_world(),-65,-100,-10,30, draw_time = 60)
+        else: grid = Grid(client.get_world(),-65,-100,-10,30)   
+        world = World(client.get_world(), grid, args)
+
+        #set the view to the middle of the grid
+        spectator = world.world.get_spectator()
+        spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
+        
         #read the path the Adversary is supposed to take from the file
         with open(args.file) as f:
             lines = f.readlines()
+        point_array=[]
+        speed_array=[]
+        accel_array=[]
+        destination_array=[]
         for line in lines:
             sp = line.split(',')
-            adversary.point_array.append(sp[1])
-            adversary.speed_array.append(float(sp[2]) * 3.6)
-            adversary.accel_array.append(float(sp[3]) * 3.6) #converts accel in m/(s * s) to km/(hr * s)
-            
-        for point in adversary.point_array:
+            point_array.append(sp[1])
+            speed_array.append(float(sp[2]) * 3.6) #converts velocity in m/s to km/hr
+            accel_array.append(float(sp[3]) * 3.6) #converts accel in m/(s * s) to km/(hr * s)
+        for point in point_array:
             i, j = grid.return_coords_from_point(point) 
             dest = grid.return_location_from_grid(i,j)
-            adversary.destination_array.append(dest)
+            destination_array.append(dest)
         
-        print(f"The size of destination_array is {len(destination_array)}")      
+        SpeedorAccel = None
+        if(len(speed_array) > 1):
+            if(speed_array[1] == accel_array[1]): SpeedorAccel = "Speed"
+            else: SpeedorAccel = "Accel"
+
+             
         
         # Spawn the actors
         blueprints = world.world.get_blueprint_library()
@@ -285,102 +354,33 @@ def game_loop(args):
         ego_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
         ego_blueprint.set_attribute('role_name','ego')
 
-
-        Adversary1_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
-        world.Adversary_1 = world.world.try_spawn_actor(Adversary1_blueprint,Adversary1_spawn_point)
-        grid.draw_location_on_grid(destination_array[0], draw_time = 5)
-        print(f"Adversary 1 has been spawned at {grid.return_grid_from_location(destination_array[0])}")
-        
+        Adversary_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
+        world.Adversary = world.world.try_spawn_actor(Adversary1_blueprint,Adversary_spawn_point)
+        """
+        if(args.debug):
+            i,j = grid.return_grid_from_location(Adversary_spawn_point.location)
+            point = grid.return_point_from_coords(i,j)
+            print(f"Adversary is located at ({Adversary_spawn_point.location.x},{Adversary_spawn_point.location.y}), grid: ({i},{j}) -> {point}") 
+            grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
+        """
+        if(args.debug): grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
 
-        world.collision_sensor = CollisionSensor(world.Adversary_1)    
-        
+        world.collision_sensor = CollisionSensor(world.Adversary)    
+
         #This is necessary to ensure vehicle "stabilizes" after "falling"
         for i in range (0,30):
             world.world.tick()
         
-        #now intialize the agents
-        dest_index = 1
-        Adversary1_loca = world.Adversary_1.get_location()
-        i,j = grid.return_grid_from_location(Adversary1_loca)
-        point = grid.return_point_from_coords(i,j)
-        print(f"Adversary1 is located at ({Adversary1_loca.x},{Adversary1_loca.y}), grid: ({i},{j}) -> {point}")
-        
-        current_speed = world.get_vehicle_speed(world.Adversary_1)
-        print(f"Adversary1's speed is {current_speed:4.2f}")
+        if "Normal" in args.file:
+            adv = Adversary(point_array, speed_array, accel_array, destination_array, 999) 
+            simulate_normal_distribution(world, adv, args, SpeedorAccel)
+        if "Categorical" in args.file:
+            adv = Adversary(point_array, speed_array, accel_array, destination_array, 0) 
+            simulate_categorical_distribution(world, adv, args)
 
-        destination = destination_array[dest_index]
-        i,j = grid.return_grid_from_location (destination)
-        point = grid.return_point_from_coords(i,j)
-        print(f"Adversary1 is headed to ({destination.x},{destination.y}), grid: ({i},{j}) -> {point}")
-
-        distance = world.get_2D_distance(Adversary1_loca,destination)
-        print(f"The distance between those two points is {distance:4.2f} meters")
-        
-        
-        target_speed = 0 + accel_array[dest_index-1] * (distance/10.0 * 3.6)  
-        print(f"target speed ({target_speed:4.2f}) = current speed ({current_speed:4.2f} km/hr) + accel ({accel_array[dest_index-1]:4.2f} km/(hr*s)) * (distance ({distance:4.2f} meters) / speed ({current_speed:4.2f} km\hr) * 3.6 km*sec/(m*hr))")
-        
-        Adversary1_agent = SimpleAgent(world.Adversary_1, destination, target_speed=target_speed)
-        grid.draw_location_on_grid(destination_array[1], draw_time = 5)
-                
-        ego_agent = BasicAgent(world.ego, target_speed = 7)
-        ego_dest = carla.Location(x=-40,y=0,z=0)
-        waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
-        ego_agent.set_destination(waypoint.transform.location)
-        
-        
-        while True:
-            world.world.tick()
-
-            Adversary1_speed = world.get_vehicle_speed(world.Adversary_1)
-            ego_speed = world.get_vehicle_speed(world.ego)    
-
-            ego_loca = world.ego.get_location()
-            Adversary1_loca = world.Adversary_1.get_location()
-            
-            if Adversary1_agent.done():
-                print(world.world.get_snapshot().timestamp)
-                i,j = grid.return_grid_from_location(destination_array[dest_index])
-                point = grid.return_point_from_coords(i,j)
-                print(f"Adversary 1 has reached destination {dest_index} at point ({point}):\tSpeed is actually {Adversary1_speed} km/hr")
-                                          
-                if (dest_index >= len(destination_array)-1):
-                    print("Adversary 1's route is complete, breaking out of loop")
-                    break
-                else:
-                    print("Setting new destination for Adversary1") 
-                    dest_index = dest_index+1
-                    print(f"Dest_index: {dest_index}")
-                    new_dest = destination_array[dest_index]
-                    grid.draw_location_on_grid(new_dest, draw_time = 3)
-                    
-                    current_speed = Adversary1_speed
-                    print(f"Adversary1's speed is {current_speed:4.2f}")
-
-                    i,j = grid.return_grid_from_location(new_dest)
-                    point = grid.return_point_from_coords(i,j)
-                    print(f"Adversary1 is headed to ({new_dest.x},{new_dest.y}), grid: ({i},{j}) -> {point}")
-
-                    distance = world.get_2D_distance(Adversary1_loca,new_dest)
-                    print(f"The distance between those two points is {distance:4.2f} meters")
-                    
-                    #if(current_speed == 0): current_speed = 10
-                    target_speed = current_speed + accel_array[dest_index-1] * (distance/current_speed * 3.6)  
-                    print(f"target speed ({target_speed:4.2f}) = current speed ({current_speed:4.2f} km/hr) + accel ({accel_array[dest_index-1]:4.2f} km/(hr*s)) * (distance ({distance:4.2f} meters) / speed ({current_speed:4.2f} km\hr) * 3.6 km*sec/(m*hr))")
-
-                    Adversary1_agent.set_destination(new_dest)
-                    Adversary1_agent.set_target_speed(target_speed)
-                                        
-            
-            control = Adversary1_agent.run_step()
-            control.manual_gear_shift = False
-            world.Adversary_1.apply_control(control)
-            if (ego_loca.y > grid.left):
-                world.ego.apply_control(ego_agent.run_step())   
-            else:
-                world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))        
+        print(f"{adv.cost:8.6f}")      
 
     finally:
         if world is not None:
@@ -389,9 +389,134 @@ def game_loop(args):
             settings.fixed_delta_seconds = None
             #settings.no_rendering_mode = False
             world.world.apply_settings(settings)
-            
 
             world.destroy()
+
+
+# ==============================================================================
+# -- categorical distribution---------------------------------------------------
+# ==============================================================================
+def simulate_categorical_distribution(world, adversary, args):
+    grid = world._grid
+    #now intialize the agents
+    dest_index = 1
+    Adversary_agent = SimpleAgent(world.Adversary, adversary.dest_array[dest_index], target_speed=20)
+    if(args.debug): grid.draw_location_on_grid(adversary.dest_array[1], draw_time = 5)
+    
+    Adv3_dest = grid.return_location_from_grid(16,14)
+
+    if(adversary.dest_array[len(adversary.dest_array)-1] != Adv3_dest):
+        adversary.cost += 999
+        return 0
+    
+    while True:
+        world.world.tick()        
+
+        Adversary_speed = world.get_vehicle_speed(world.Adversary)
+        Adversary_loca = world.Adversary.get_location()
+
+        if(len(world.collision_sensor.get_collision_history())>0):
+            #print("Ending simulation due to collision")
+            adversary.cost += 999
+            break
+        
+        if Adversary_agent.done():
+            if (dest_index >= len(adversary.dest_array)-1):
+                #print("Adversary's route is complete, breaking out of loop")
+                break
+            else:
+                dest_index = dest_index+1
+                new_dest = adversary.dest_array[dest_index]
+                if(world.is_in_crosswalk(new_dest)):
+                    if(args.debug): world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(255,0,0),life_time=3)
+                    adversary.cost += 0
+                else: 
+                    adversary.cost += world.get_2D_distance(Adversary_loca,new_dest)
+                    if(args.debug): grid.draw_location_on_grid(new_dest, draw_time = 3)
+                
+                Adversary_agent.set_destination(new_dest)
+
+        
+        control = Adversary_agent.run_step()
+        control.manual_gear_shift = False
+        world.Adversary.apply_control(control)
+
+
+# ==============================================================================
+# -- normal distribution--------------------------------------------------------
+# ==============================================================================
+def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
+    grid = world._grid
+    #now intialize the agents
+    dest_index = 1
+    destination = adversary.dest_array[dest_index]
+    Adversary_loca = world.Adversary.get_location()
+    if SpeedorAccel == "Speed": target_speed = adversary.speed_array[dest_index]
+    else: 
+        distance = world.get_2D_distance(Adversary_loca,destination)    
+        target_speed = 0 + adversary.accel_array[dest_index-1] * (distance/10.0 * 3.6)  
+    Adversary_agent = SimpleAgent(world.Adversary, destination, target_speed=target_speed)
+    if(args.debug): grid.draw_location_on_grid(adversary.dest_array[1], draw_time = 5)
+            
+    ego_agent = BasicAgent(world.ego, target_speed = 7)
+    ego_dest = carla.Location(x=-40,y=0,z=0)
+    waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
+    ego_agent.set_destination(waypoint.transform.location)
+    
+    while True:
+        world.world.tick()
+
+        Adversary_speed = world.get_vehicle_speed(world.Adversary)
+        ego_speed = world.get_vehicle_speed(world.ego)    
+
+        ego_loca = world.ego.get_location()
+        Adversary_loca = world.Adversary.get_location()
+        adv_ego_distance = world.get_2D_distance(ego_loca, Adversary_loca)
+        
+        if(adv_ego_distance < adversary.cost):
+            adversary.cost = adv_ego_distance
+        if(len(world.collision_sensor.get_collision_history())>0):
+            #print("Ending simulation due to collision")
+            adversary.cost = -1
+            break
+        
+        if Adversary_agent.done():
+            
+            """
+            if(args.debug): 
+                print(world.world.get_snapshot().timestamp)
+                i,j = grid.return_grid_from_location(adversary.dest_array[dest_index])
+                point = grid.return_point_from_coords(i,j)
+                print(f"Adversary has reached destination {dest_index} at point {point}")
+                print(f"Target speed was {target_speed:4.2f} but speed is actually {Adversary_speed:4.2f} km/hr")
+            """
+                                        
+            if (dest_index >= len(adversary.dest_array)-1):
+                #print("Adversary's route is complete, breaking out of loop")
+                break
+            else:
+                dest_index = dest_index+1
+                new_dest = adversary.dest_array[dest_index]
+                if(args.debug): grid.draw_location_on_grid(new_dest, draw_time = 3)
+                
+                if SpeedorAccel == "Speed": target_speed = adversary.speed_array[dest_index]
+                else:
+                    current_speed = Adversary_speed
+                    distance = world.get_2D_distance(Adversary_loca,new_dest)
+                    target_speed = current_speed + adversary.accel_array[dest_index-1] * (distance/current_speed * 3.6)  
+                #print(f"target speed ({target_speed:4.2f}) = current speed ({current_speed:4.2f} km/hr) + accel ({adversary.accel_array[dest_index-1]:4.2f} km/(hr*s)) * (distance ({distance:4.2f} meters) / speed ({current_speed:4.2f} km\hr) * 3.6 km*sec/(m*hr))")
+
+                Adversary_agent.set_destination(new_dest)
+                Adversary_agent.set_target_speed(target_speed)
+                                    
+        
+        control = Adversary_agent.run_step()
+        control.manual_gear_shift = False
+        world.Adversary.apply_control(control)
+        if (ego_loca.y > grid.left):
+            world.ego.apply_control(ego_agent.run_step())   
+        else:
+            world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))  
 
 # ==============================================================================
 # -- main() --------------------------------------------------------------
@@ -431,10 +556,6 @@ def main():
     args = argparser.parse_args()
     
     try:
-        global COLLISION
-        COLLISION = False
-        global MIN_DISTANCE
-        MIN_DISTANCE = 999.99999
         game_loop(args)
 
     except KeyboardInterrupt:

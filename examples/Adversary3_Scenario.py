@@ -283,9 +283,9 @@ class Grid(object):
         return location
     
     def return_grid_from_location(self, location):
-        for index in range(1,20):
-            if(location.x < self.top - self.box_height * (index-1)): i=index
-            if(location.y > self.left + self.box_width* (index-1)): j=index
+        for index in range(0,19):
+            if(location.x < self.top - self.box_height * (index)): i=index
+            if(location.y > self.left + self.box_width* (index)): j=index
         
         return (i,j)
 

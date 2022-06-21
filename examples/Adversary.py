@@ -290,6 +290,7 @@ def game_loop(args):
     Main loop of the simulation.
     """
     world = None
+    score = 0
 
     try:
         client = carla.Client(args.host, args.port)
@@ -344,7 +345,6 @@ def game_loop(args):
             else: SpeedorAccel = "Accel"
 
              
-        
         # Spawn the actors
         blueprints = world.world.get_blueprint_library()
 
@@ -364,6 +364,8 @@ def game_loop(args):
             grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
         """
         if(args.debug): grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
+        
+        
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
 
@@ -372,17 +374,26 @@ def game_loop(args):
         #This is necessary to ensure vehicle "stabilizes" after "falling"
         for i in range (0,30):
             world.world.tick()
-        
+
+        #No negative speed, no NaNs
+        for spd in speed_array:
+            if math.isnan(spd) or spd < 0:
+                score += 999
+                return 0
+
+        adv = None
         if "Normal" in args.file:
             adv = Adversary(point_array, speed_array, accel_array, destination_array, 999) 
             simulate_normal_distribution(world, adv, args, SpeedorAccel)
+            score += adv.cost
         if "Categorical" in args.file:
-            adv = Adversary(point_array, speed_array, accel_array, destination_array, 0) 
+            adv = Adversary(point_array, speed_array, accel_array, destination_array, -10) 
             simulate_categorical_distribution(world, adv, args)
-
-        print(f"{adv.cost:8.6f}")      
+            score += adv.cost
 
     finally:
+        print(f"{score:8.6f}")
+
         if world is not None:
             settings = world.world.get_settings()
             settings.synchronous_mode = False
@@ -409,6 +420,8 @@ def simulate_categorical_distribution(world, adversary, args):
         adversary.cost += 999
         return 0
     
+    adversary.cost += -1/len(adversary.dest_array)
+    
     while True:
         world.world.tick()        
 
@@ -431,7 +444,7 @@ def simulate_categorical_distribution(world, adversary, args):
                     if(args.debug): world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(255,0,0),life_time=3)
                     adversary.cost += 0
                 else: 
-                    adversary.cost += world.get_2D_distance(Adversary_loca,new_dest)
+                    adversary.cost += .1 #1/world.get_2D_distance(Adversary_loca,new_dest)
                     if(args.debug): grid.draw_location_on_grid(new_dest, draw_time = 3)
                 
                 Adversary_agent.set_destination(new_dest)
@@ -457,22 +470,42 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         target_speed = 0 + adversary.accel_array[dest_index-1] * (distance/10.0 * 3.6)  
     Adversary_agent = SimpleAgent(world.Adversary, destination, target_speed=target_speed)
     if(args.debug): grid.draw_location_on_grid(adversary.dest_array[1], draw_time = 5)
-            
+
+    """        
     ego_agent = BasicAgent(world.ego, target_speed = 7)
     ego_dest = carla.Location(x=-40,y=0,z=0)
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
+    """
+
+    ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
+    ego_dest = grid.return_location_from_grid(8,0)
+    waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
+    ego_agent.set_destination(waypoint.transform.location)
+    if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)
     
+    stuck_counter = 0
     while True:
         world.world.tick()
-
+        stuck_counter += 1
+        
         Adversary_speed = world.get_vehicle_speed(world.Adversary)
         ego_speed = world.get_vehicle_speed(world.ego)    
 
         ego_loca = world.ego.get_location()
         Adversary_loca = world.Adversary.get_location()
         adv_ego_distance = world.get_2D_distance(ego_loca, Adversary_loca)
+
         
+        #This detects if the Advesary is stuck (i.e. hasn't moved squares for 100 ticks (5 seconds))
+        if(stuck_counter % 100 == 0):
+            i,j = grid.return_grid_from_location(Adversary_loca)
+            pt = grid.return_point_from_coords(i,j)
+            #print(f"located at {pt} == {int(adversary.point_array[dest_index - 1])}")
+            if(pt == int(adversary.point_array[dest_index - 1])):
+                adversary.cost += 999
+                return 0
+
         if(adv_ego_distance < adversary.cost):
             adversary.cost = adv_ego_distance
         if(len(world.collision_sensor.get_collision_history())>0):
@@ -496,6 +529,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                 break
             else:
                 dest_index = dest_index+1
+                stuck_counter = 0
                 new_dest = adversary.dest_array[dest_index]
                 if(args.debug): grid.draw_location_on_grid(new_dest, draw_time = 3)
                 
@@ -513,7 +547,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         control = Adversary_agent.run_step()
         control.manual_gear_shift = False
         world.Adversary.apply_control(control)
-        if (ego_loca.y > grid.left):
+        if (ego_loca.y > (grid.left-10)):
             world.ego.apply_control(ego_agent.run_step())   
         else:
             world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))  

@@ -364,6 +364,9 @@ def game_loop(args):
             grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
         """
         if(args.debug): grid.draw_location_on_grid(Adversary_spawn_point.location, draw_time = 5)
+        if(args.debug_nums):
+            world.world.debug.draw_point(Adversary_spawn_point.location,size=0.2,color=carla.Color(255,255,255),life_time=100)
+            #world.world.debug.draw_string(Adversary_spawn_point.location+carla.Location(z=.5),"START",draw_shadow=True,color=carla.Color(0,0,255), life_time=60)
         
         
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
@@ -383,7 +386,7 @@ def game_loop(args):
 
         adv = None
         if "Normal" in args.file:
-            adv = Adversary(point_array, speed_array, accel_array, destination_array, 999) 
+            adv = Adversary(point_array, speed_array, accel_array, destination_array, 0) 
             simulate_normal_distribution(world, adv, args, SpeedorAccel)
             score += adv.cost
         if "Categorical" in args.file:
@@ -413,6 +416,7 @@ def simulate_categorical_distribution(world, adversary, args):
     dest_index = 1
     Adversary_agent = SimpleAgent(world.Adversary, adversary.dest_array[dest_index], target_speed=20)
     if(args.debug): grid.draw_location_on_grid(adversary.dest_array[1], draw_time = 5)
+    if(args.debug_nums): world.world.debug.draw_point(adversary.dest_array[1],size=0.2,color=carla.Color(255,255,255),life_time=100)
     
     Adv3_dest = grid.return_location_from_grid(16,14)
 
@@ -436,16 +440,20 @@ def simulate_categorical_distribution(world, adversary, args):
         if Adversary_agent.done():
             if (dest_index >= len(adversary.dest_array)-1):
                 #print("Adversary's route is complete, breaking out of loop")
+                if(args.debug_nums): print(len(adversary.dest_array))
                 break
             else:
                 dest_index = dest_index+1
                 new_dest = adversary.dest_array[dest_index]
                 if(world.is_in_crosswalk(new_dest)):
                     if(args.debug): world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(255,0,0),life_time=3)
+                    if(args.debug_nums): world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(0,0,255),life_time=100)
                     adversary.cost += 0
                 else: 
                     adversary.cost += .1 #1/world.get_2D_distance(Adversary_loca,new_dest)
                     if(args.debug): grid.draw_location_on_grid(new_dest, draw_time = 3)
+                    if(args.debug_nums): world.world.debug.draw_point(new_dest,size=0.2,color=carla.Color(255,255,255),life_time=100)
+                        
                 
                 Adversary_agent.set_destination(new_dest)
 
@@ -483,6 +491,9 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
     if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)
+    ego_done = False
+    ego_done_time = 0
+    adv_done_time = 0
     
     stuck_counter = 0
     while True:
@@ -505,13 +516,15 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
             if(pt == int(adversary.point_array[dest_index - 1])):
                 adversary.cost += 999
                 return 0
-
+        """
         if(adv_ego_distance < adversary.cost):
             adversary.cost = adv_ego_distance
+        """
         if(len(world.collision_sensor.get_collision_history())>0):
             #print("Ending simulation due to collision")
             adversary.cost = -1
             break
+        
         
         if Adversary_agent.done():
             
@@ -526,6 +539,13 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                                         
             if (dest_index >= len(adversary.dest_array)-1):
                 #print("Adversary's route is complete, breaking out of loop")
+                adv_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
+                if(not ego_done):
+                    #print("Adversary is done, ego not done yet")
+                    adversary.cost +=500
+                else:                
+                    #print(f"Adversary done at {adv_done_time}, ego done at {ego_done_time}")
+                    adversary.cost += adv_done_time - ego_done_time
                 break
             else:
                 dest_index = dest_index+1
@@ -547,10 +567,21 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         control = Adversary_agent.run_step()
         control.manual_gear_shift = False
         world.Adversary.apply_control(control)
+        
+        
+        if(world.get_2D_distance(waypoint.transform.location,ego_loca) < 0.5 and not ego_done):
+            #print("Ego_agent is done")
+            ego_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
+            ego_done =  True
+
+        elif(not ego_done):
+            world.ego.apply_control(ego_agent.run_step())
+        """
         if (ego_loca.y > (grid.left-10)):
             world.ego.apply_control(ego_agent.run_step())   
         else:
-            world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))  
+            world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))
+        """  
 
 # ==============================================================================
 # -- main() --------------------------------------------------------------
@@ -586,6 +617,10 @@ def main():
         '--debug',
         action='store_true',
         help='Draws graph and points')
+    argparser.add_argument(
+        '--debug_nums',
+        action='store_true',
+        help='Draws points with numbers visited for categorical')
 
     args = argparser.parse_args()
     

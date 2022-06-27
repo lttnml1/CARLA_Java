@@ -90,6 +90,8 @@ class World(object):
         self.ego = None
         self.Adversary = None
         self.collision_sensor = None
+        self.obstacle_sensor_adv = None
+        self.obstacle_sensor_ego = None
     
     def get_crosswalk(self, draw_time: int = 0):
         crosswalks = self.map.get_crosswalks()
@@ -170,7 +172,9 @@ class World(object):
         actors = [
             self.ego,
             self.Adversary,
-            self.collision_sensor.sensor]
+            self.collision_sensor.sensor,
+            self.obstacle_sensor_adv.sensor,
+            self.obstacle_sensor_ego.sensor]
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -216,6 +220,42 @@ class CollisionSensor(object):
             self.history.pop(0)
         #if "vehicle" in str(event.other_actor.type_id):
         #    print(f"Collision with {event.other_actor.type_id}")
+
+
+# ==============================================================================
+# -- ObstacleSensor -----------------------------------------------------------
+# ==============================================================================
+class ObstacleSensor(object):
+    """ Class for obstacle sensors"""
+
+    def __init__(self, parent_actor):
+        """Constructor method"""
+        self.sensor = None
+        self.history = []
+        self._parent = parent_actor
+        world = self._parent.get_world()
+        blueprint = world.get_blueprint_library().find('sensor.other.obstacle')
+        blueprint.set_attribute('only_dynamics','True')
+        blueprint.set_attribute('distance','10')
+        self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._parent)
+        # We need to pass the lambda a weak reference to
+        # self to avoid circular reference.
+        weak_self = weakref.ref(self)
+        self.sensor.listen(lambda event: ObstacleSensor._on_obstacle_detected(weak_self, event))
+
+    def get_smallest_distance(self):
+        """Gets the closest distance between Adversary and ego"""
+        if(len(self.history)>0): return sorted(self.history)[0]
+        else: return 999
+    
+    @staticmethod
+    def _on_obstacle_detected(weak_self, event):
+        """On obstacle_detect method"""
+        self = weak_self()
+        if not self:
+            return
+        self.history.append(event.distance)
+        
         
 
 # ==============================================================================
@@ -373,6 +413,8 @@ def game_loop(args):
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
 
         world.collision_sensor = CollisionSensor(world.Adversary)    
+        world.obstacle_sensor_adv = ObstacleSensor(world.Adversary)
+        world.obstacle_sensor_ego = ObstacleSensor(world.ego)
 
         #This is necessary to ensure vehicle "stabilizes" after "falling"
         for i in range (0,30):
@@ -467,6 +509,7 @@ def simulate_categorical_distribution(world, adversary, args):
 # -- normal distribution--------------------------------------------------------
 # ==============================================================================
 def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
+    cost_funct = "TTC"#either "TTC" or "finish_time"
     grid = world._grid
     #now intialize the agents
     dest_index = 1
@@ -494,6 +537,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_done = False
     ego_done_time = 0
     adv_done_time = 0
+    ttc = 999
     
     stuck_counter = 0
     while True:
@@ -516,10 +560,10 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
             if(pt == int(adversary.point_array[dest_index - 1])):
                 adversary.cost += 999
                 return 0
-        """
-        if(adv_ego_distance < adversary.cost):
-            adversary.cost = adv_ego_distance
-        """
+        
+        if(adv_ego_distance < ttc):
+            ttc = adv_ego_distance
+        
         if(len(world.collision_sensor.get_collision_history())>0):
             #print("Ending simulation due to collision")
             adversary.cost = -1
@@ -540,12 +584,20 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
             if (dest_index >= len(adversary.dest_array)-1):
                 #print("Adversary's route is complete, breaking out of loop")
                 adv_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
-                if(not ego_done):
-                    #print("Adversary is done, ego not done yet")
-                    adversary.cost +=500
-                else:                
-                    #print(f"Adversary done at {adv_done_time}, ego done at {ego_done_time}")
-                    adversary.cost += adv_done_time - ego_done_time
+                if cost_funct == "finish_time":
+                    if(not ego_done):
+                        #print("Adversary is done, ego not done yet")
+                        adversary.cost +=500
+                    else:                
+                        #print(f"Adversary done at {adv_done_time}, ego done at {ego_done_time}")
+                        adversary.cost += adv_done_time - ego_done_time
+                elif cost_funct == "TTC":
+                    #adversary.cost += ttc
+                    adv_ttc =  world.obstacle_sensor_adv.get_smallest_distance()
+                    ego_ttc = world.obstacle_sensor_ego.get_smallest_distance()
+                    if(adv_ttc < ego_ttc): adversary.cost = adv_ttc
+                    else: adversary.cost = ego_ttc
+                else: print("Cost function not defined")
                 break
             else:
                 dest_index = dest_index+1

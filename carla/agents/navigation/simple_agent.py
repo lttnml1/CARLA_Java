@@ -36,6 +36,12 @@ class SimpleAgent(object):
         
         self._target_speed = target_speed
 
+    def add_emergency_stop(self, control):
+        control.throttle = 0.0
+        control.brake = self._max_brake
+        control.hand_brake = False
+        return control
+    
     def run_step(self):
         """Execute one step of navigation."""
         #vehicle_speed = get_speed(self._vehicle) / 3.6

@@ -361,7 +361,9 @@ def game_loop(args):
         #set the view to the middle of the grid
         spectator = world.world.get_spectator()
         spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
+        #spectator.set_transform(carla.Transform(carla.Location(x=-75,y=7,z=20),carla.Rotation(roll=0, pitch=-90,yaw=0)))
         
+
         #read the path the Adversary is supposed to take from the file
         with open(args.file) as f:
             lines = f.readlines()
@@ -530,6 +532,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     """
 
     ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
+    #ego_agent = BasicAgent(world.ego, target_speed = 15,  opt_dict={'ignore_traffic_lights':'True'})
     ego_dest = grid.return_location_from_grid(8,0)
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
@@ -621,6 +624,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         world.Adversary.apply_control(control)
         
         
+        
         if(world.get_2D_distance(waypoint.transform.location,ego_loca) < 0.5 and not ego_done):
             #print("Ego_agent is done")
             ego_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
@@ -628,6 +632,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
 
         elif(not ego_done):
             world.ego.apply_control(ego_agent.run_step())
+        
         """
         if (ego_loca.y > (grid.left-10)):
             world.ego.apply_control(ego_agent.run_step())   

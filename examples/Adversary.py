@@ -232,6 +232,7 @@ class ObstacleSensor(object):
         """Constructor method"""
         self.sensor = None
         self.history = []
+        self.speeds = []
         self._parent = parent_actor
         world = self._parent.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.obstacle')
@@ -248,6 +249,16 @@ class ObstacleSensor(object):
         if(len(self.history)>0): return sorted(self.history)[0]
         else: return 999
     
+    def get_shortest_ttc(self):
+        dist = self.get_smallest_distance()
+        if(dist != 999):
+            i = self.history.index(dist)
+            speed = self.speeds[i]
+            ttc = dist / speed
+            #print(f"The actors detected an obstacle at {dist:6.4f}m when it was going {speed:6.4f}m/s, therefore the ttc was {ttc:6.4f}")
+        else: ttc = 999 
+        return ttc
+
     @staticmethod
     def _on_obstacle_detected(weak_self, event):
         """On obstacle_detect method"""
@@ -255,6 +266,9 @@ class ObstacleSensor(object):
         if not self:
             return
         self.history.append(event.distance)
+        vel = self._parent.get_velocity()
+        speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
+        self.speeds.append(speed)
         
         
 
@@ -540,7 +554,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_done = False
     ego_done_time = 0
     adv_done_time = 0
-    ttc = 999
+
     
     stuck_counter = 0
     while True:
@@ -563,9 +577,6 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
             if(pt == int(adversary.point_array[dest_index - 1])):
                 adversary.cost += 999
                 return 0
-        
-        if(adv_ego_distance < ttc):
-            ttc = adv_ego_distance
         
         if(len(world.collision_sensor.get_collision_history())>0):
             #print("Ending simulation due to collision")
@@ -594,10 +605,9 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                     else:                
                         #print(f"Adversary done at {adv_done_time}, ego done at {ego_done_time}")
                         adversary.cost += adv_done_time - ego_done_time
-                elif cost_funct == "TTC":
-                    #adversary.cost += ttc
-                    adv_ttc =  world.obstacle_sensor_adv.get_smallest_distance()
-                    ego_ttc = world.obstacle_sensor_ego.get_smallest_distance()
+                elif cost_funct == "TTC":                  
+                    adv_ttc = world.obstacle_sensor_adv.get_shortest_ttc()
+                    ego_ttc = world.obstacle_sensor_ego.get_shortest_ttc()
                     if(adv_ttc < ego_ttc): adversary.cost = adv_ttc
                     else: adversary.cost = ego_ttc
                 else: print("Cost function not defined")

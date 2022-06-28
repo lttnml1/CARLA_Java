@@ -250,6 +250,7 @@ class ObstacleSensor(object):
         else: return 999
     
     def get_shortest_ttc(self):
+        """ 
         dist = self.get_smallest_distance()
         if(dist != 999):
             i = self.history.index(dist)
@@ -258,6 +259,14 @@ class ObstacleSensor(object):
             #print(f"The actors detected an obstacle at {dist:6.4f}m when it was going {speed:6.4f}m/s, therefore the ttc was {ttc:6.4f}")
         else: ttc = 999 
         return ttc
+        """
+        if(len(self.history)>0):
+            ttcs = []
+            for i in range(0,len(self.history)):
+                ttc = self.history[i] / self.speeds[i]
+                ttcs.append(ttc)
+            return sorted(ttcs)[0]
+        else: return 999
 
     @staticmethod
     def _on_obstacle_detected(weak_self, event):

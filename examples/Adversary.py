@@ -92,6 +92,27 @@ class World(object):
         self.collision_sensor = None
         self.obstacle_sensor_adv = None
         self.obstacle_sensor_ego = None
+        self.feature_vector = []
+    
+    def write_features(self):
+        with open("c:\\data\\features.txt","w") as f:
+            for feat_vect in self.feature_vector:
+                for item in feat_vect:
+                    if(type(item)) is int:
+                        f.write(f"{item},")
+                    if(type(item)) is float:
+                        f.write(f"{item:8.4f},")
+                f.write("\n")
+    
+    def get_features(self):
+        snapshot = self.world.get_snapshot()
+        frame = snapshot.frame
+        ActorSnapshot_ego = snapshot.find(self.Adversary.id)
+        ActorSnapshot_adv = snapshot.find(self.ego.id)
+
+        frame_feature_vector = [frame,ActorSnapshot_ego.get_acceleration().x,ActorSnapshot_ego.get_acceleration().y,ActorSnapshot_ego.get_acceleration().z,
+                                ActorSnapshot_ego.get_angular_velocity().x,ActorSnapshot_ego.get_angular_velocity().y,ActorSnapshot_ego.get_angular_velocity().z,]
+        self.feature_vector.append(frame_feature_vector)
     
     def get_crosswalk(self, draw_time: int = 0):
         crosswalks = self.map.get_crosswalks()
@@ -453,7 +474,7 @@ def game_loop(args):
 
         adv = None
         if "Normal" in args.file:
-            adv = Adversary(point_array, speed_array, accel_array, destination_array, 0) 
+            adv = Adversary(point_array, speed_array, accel_array, destination_array, -1) 
             simulate_normal_distribution(world, adv, args, SpeedorAccel)
             score += adv.cost
         if "Categorical" in args.file:
@@ -470,6 +491,8 @@ def game_loop(args):
             settings.fixed_delta_seconds = None
             #settings.no_rendering_mode = False
             world.world.apply_settings(settings)
+
+            world.write_features()
 
             world.destroy()
 
@@ -567,6 +590,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     
     stuck_counter = 0
     while True:
+        world.get_features()
         world.world.tick()
         stuck_counter += 1
         
@@ -589,7 +613,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         
         if(len(world.collision_sensor.get_collision_history())>0):
             #print("Ending simulation due to collision")
-            adversary.cost = -1
+            adversary.cost += 0
             break
         
         
@@ -617,8 +641,10 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                 elif cost_funct == "TTC":                  
                     adv_ttc = world.obstacle_sensor_adv.get_shortest_ttc()
                     ego_ttc = world.obstacle_sensor_ego.get_shortest_ttc()
-                    if(adv_ttc < ego_ttc): adversary.cost = adv_ttc
-                    else: adversary.cost = ego_ttc
+                    if(adv_ttc < ego_ttc): 
+                        #print(f"TTC is {adv_ttc:8.6f}")
+                        adversary.cost += adv_ttc
+                    else: adversary.cost += ego_ttc
                 else: print("Cost function not defined")
                 break
             else:

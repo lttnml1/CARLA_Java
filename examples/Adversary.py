@@ -100,14 +100,14 @@ class World(object):
         file_path = "C:\\data\\Features\\"
         if(score < 0):
             num = args.file.split('#')[1]
-            file_name = f"features_{score:8.6f}_BAD_{args.file}_{num}"
+            file_name = f"features_{num}_BAD_{score:8.6f}"
             file = file_path + file_name
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)
                 writer.writerows(self.feature_vector)
         elif(score >= 0 and score < 500):
             num = args.file.split('#')[1]
-            file_name = f"features_{score:8.6f}_GOOD_{num}"
+            file_name = f"features_{num}_GOOD_{score:8.6f}"
             file = file_path + file_name
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)

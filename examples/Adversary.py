@@ -17,6 +17,7 @@ import numpy.random as random
 import re
 import sys
 import weakref
+import csv
 
 try:
     import numpy as np
@@ -78,6 +79,7 @@ class World(object):
         self.world = carla_world
         self._grid = grid
         self._args = args
+
         
         try:
             self.map = self.world.get_map()
@@ -94,24 +96,57 @@ class World(object):
         self.obstacle_sensor_ego = None
         self.feature_vector = []
     
-    def write_features(self):
-        with open("c:\\data\\features.txt","w") as f:
-            for feat_vect in self.feature_vector:
-                for item in feat_vect:
-                    if(type(item)) is int:
-                        f.write(f"{item},")
-                    if(type(item)) is float:
-                        f.write(f"{item:8.4f},")
-                f.write("\n")
+    def write_features(self, score,args):
+        file_path = "C:\\data\\Features\\"
+        if(score < 0):
+            num = args.file.split('#')[1]
+            file_name = f"features_{score:8.6f}_BAD_{args.file}_{num}"
+            file = file_path + file_name
+            with open(file,"w",newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.feature_vector)
+        elif(score >= 0 and score < 500):
+            num = args.file.split('#')[1]
+            file_name = f"features_{score:8.6f}_GOOD_{num}"
+            file = file_path + file_name
+            with open(file,"w",newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.feature_vector)
+        else: 
+            return
     
     def get_features(self):
         snapshot = self.world.get_snapshot()
         frame = snapshot.frame
+        actors = []
         ActorSnapshot_ego = snapshot.find(self.Adversary.id)
+        actors.append(ActorSnapshot_ego)
         ActorSnapshot_adv = snapshot.find(self.ego.id)
+        actors.append(ActorSnapshot_adv)
 
-        frame_feature_vector = [frame,ActorSnapshot_ego.get_acceleration().x,ActorSnapshot_ego.get_acceleration().y,ActorSnapshot_ego.get_acceleration().z,
-                                ActorSnapshot_ego.get_angular_velocity().x,ActorSnapshot_ego.get_angular_velocity().y,ActorSnapshot_ego.get_angular_velocity().z,]
+        frame_feature_vector = []
+        frame_feature_vector.append(frame)
+        for actor in actors:
+            frame_feature_vector.append(actor.get_transform().location.x)
+            frame_feature_vector.append(actor.get_transform().location.y)
+            frame_feature_vector.append(actor.get_transform().location.z)
+            
+            frame_feature_vector.append(actor.get_transform().rotation.roll)
+            frame_feature_vector.append(actor.get_transform().rotation.pitch)
+            frame_feature_vector.append(actor.get_transform().rotation.yaw)
+
+            frame_feature_vector.append(actor.get_velocity().x)
+            frame_feature_vector.append(actor.get_velocity().y)
+            frame_feature_vector.append(actor.get_velocity().z)
+
+            frame_feature_vector.append(actor.get_angular_velocity().x)
+            frame_feature_vector.append(actor.get_angular_velocity().y)
+            frame_feature_vector.append(actor.get_angular_velocity().z)
+
+            frame_feature_vector.append(actor.get_acceleration().x)
+            frame_feature_vector.append(actor.get_acceleration().y)
+            frame_feature_vector.append(actor.get_acceleration().z)
+            
         self.feature_vector.append(frame_feature_vector)
     
     def get_crosswalk(self, draw_time: int = 0):
@@ -492,7 +527,8 @@ def game_loop(args):
             #settings.no_rendering_mode = False
             world.world.apply_settings(settings)
 
-            world.write_features()
+            if "Normal" in args.file:
+                world.write_features(score,args)
 
             world.destroy()
 

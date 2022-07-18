@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 # Author:           Matthew Litton
-# Last Modified:    6/20/2022
-# Purpose:          
+# Last Modified:    7/18/2022
+# Purpose:          Main script for running/retrieving data from simulation for Cross-Entropy
 
 from __future__ import print_function
 
@@ -101,14 +101,14 @@ class World(object):
         if(score < 0):
             num = args.file.split('#')[1]
             file_name = f"features_{num}_BAD_{score:8.6f}"
-            file = file_path + file_name
+            file = file_path + file_name + ".csv"
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)
                 writer.writerows(self.feature_vector)
         elif(score >= 0 and score < 500):
             num = args.file.split('#')[1]
             file_name = f"features_{num}_GOOD_{score:8.6f}"
-            file = file_path + file_name
+            file = file_path + file_name + ".csv"
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)
                 writer.writerows(self.feature_vector)
@@ -306,23 +306,14 @@ class ObstacleSensor(object):
         else: return 999
     
     def get_shortest_ttc(self):
-        """ 
-        dist = self.get_smallest_distance()
-        if(dist != 999):
-            i = self.history.index(dist)
-            speed = self.speeds[i]
-            ttc = dist / speed
-            #print(f"The actors detected an obstacle at {dist:6.4f}m when it was going {speed:6.4f}m/s, therefore the ttc was {ttc:6.4f}")
-        else: ttc = 999 
-        return ttc
-        """
+        
         if(len(self.history)>0):
             ttcs = []
             for i in range(0,len(self.history)):
                 ttc = self.history[i] / self.speeds[i]
                 ttcs.append(ttc)
             return sorted(ttcs)[0]
-        else: return 999
+        else: return 100
 
     @staticmethod
     def _on_obstacle_detected(weak_self, event):

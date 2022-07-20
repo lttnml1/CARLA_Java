@@ -276,6 +276,9 @@ class CollisionSensor(object):
             self.history.pop(0)
         #if "vehicle" in str(event.other_actor.type_id):
         #    print(f"Collision with {event.other_actor.type_id}")
+        #actor_type = ' '.join(event.other_actor.type_id.replace('_', '.').title().split('.')[1:])
+        #print("Collision with %r" % actor_type)
+
 
 
 # ==============================================================================

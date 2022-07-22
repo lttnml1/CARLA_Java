@@ -170,6 +170,7 @@ class BasicAgent(object):
         max_vehicle_distance = self._base_vehicle_threshold + vehicle_speed
         affected_by_vehicle, _, _ = self._vehicle_obstacle_detected(vehicle_list, max_vehicle_distance)
         if affected_by_vehicle:
+            #print(f"I see an obstacle!!!")
             hazard_detected = True
 
         # Check if the vehicle is affected by a red traffic light

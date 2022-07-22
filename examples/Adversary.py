@@ -66,6 +66,7 @@ class Adversary():
         self.accel_array = accel_array
         self.dest_array = dest_array
         self.cost = cost
+        self.frame = 0
 
 
 # ==============================================================================
@@ -96,21 +97,23 @@ class World(object):
         self.obstacle_sensor_ego = None
         self.feature_vector = []
     
-    def write_features(self, score,args):
+    def write_features(self, score, frame, args):
         file_path = "C:\\data\\Features\\"
         if(score < 0):
             num = args.file.split('#')[1]
-            file_name = f"features_{num}_BAD_{score:8.6f}"
+            file_name = f"features_path{num}_label1_score{score:8.6f}_frame{frame}"
             file = file_path + file_name + ".csv"
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)
+                writer.writerow(["Frame","ego_loc_x","ego_loc_y","ego_velocity","adv_loc_x","adv_loc_y","adv_velocity","ego_throttle","ego_steer","ego_brake","adv_throttle","adv_steer","adv_brake"])
                 writer.writerows(self.feature_vector)
         elif(score >= 0 and score < 500):
             num = args.file.split('#')[1]
-            file_name = f"features_{num}_GOOD_{score:8.6f}"
+            file_name = f"features_path{num}_label0_score{score:8.6f}_frame{frame}"
             file = file_path + file_name + ".csv"
             with open(file,"w",newline="") as f:
                 writer = csv.writer(f)
+                writer.writerow(["Frame","ego_loc_x","ego_loc_y","ego_velocity","adv_loc_x","adv_loc_y","adv_velocity","ego_throttle","ego_steer","ego_brake","adv_throttle","adv_steer","adv_brake"])
                 writer.writerows(self.feature_vector)
         else: 
             return
@@ -129,23 +132,33 @@ class World(object):
         for actor in actors:
             frame_feature_vector.append(actor.get_transform().location.x)
             frame_feature_vector.append(actor.get_transform().location.y)
-            frame_feature_vector.append(actor.get_transform().location.z)
-            
-            frame_feature_vector.append(actor.get_transform().rotation.roll)
-            frame_feature_vector.append(actor.get_transform().rotation.pitch)
-            frame_feature_vector.append(actor.get_transform().rotation.yaw)
+            #frame_feature_vector.append(actor.get_transform().location.z)
 
-            frame_feature_vector.append(actor.get_velocity().x)
-            frame_feature_vector.append(actor.get_velocity().y)
-            frame_feature_vector.append(actor.get_velocity().z)
+            #frame_feature_vector.append(actor.get_transform().rotation.roll)
+            #frame_feature_vector.append(actor.get_transform().rotation.pitch)
+            #frame_feature_vector.append(actor.get_transform().rotation.yaw)
 
-            frame_feature_vector.append(actor.get_angular_velocity().x)
-            frame_feature_vector.append(actor.get_angular_velocity().y)
-            frame_feature_vector.append(actor.get_angular_velocity().z)
+            vel = actor.get_velocity()
+            frame_feature_vector.append(math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2))
+            #frame_feature_vector.append(actor.get_velocity().x)
+            #frame_feature_vector.append(actor.get_velocity().y)
+            #frame_feature_vector.append(actor.get_velocity().z)
 
-            frame_feature_vector.append(actor.get_acceleration().x)
-            frame_feature_vector.append(actor.get_acceleration().y)
-            frame_feature_vector.append(actor.get_acceleration().z)
+            #frame_feature_vector.append(actor.get_angular_velocity().x)
+            #frame_feature_vector.append(actor.get_angular_velocity().y)
+            #frame_feature_vector.append(actor.get_angular_velocity().z)
+
+            #frame_feature_vector.append(actor.get_acceleration().x)
+            #frame_feature_vector.append(actor.get_acceleration().y)
+            #frame_feature_vector.append(actor.get_acceleration().z)
+        vehicles = []
+        vehicles.append(self.ego)
+        vehicles.append(self.Adversary)
+        for vehicle in vehicles:
+            control = vehicle.get_control()
+            frame_feature_vector.append(control.throttle)
+            frame_feature_vector.append(control.steer)
+            frame_feature_vector.append(control.brake)
             
         self.feature_vector.append(frame_feature_vector)
     
@@ -292,6 +305,7 @@ class ObstacleSensor(object):
         self.sensor = None
         self.history = []
         self.speeds = []
+        self.frames = []
         self._parent = parent_actor
         world = self._parent.get_world()
         blueprint = world.get_blueprint_library().find('sensor.other.obstacle')
@@ -315,8 +329,12 @@ class ObstacleSensor(object):
             for i in range(0,len(self.history)):
                 ttc = self.history[i] / self.speeds[i]
                 ttcs.append(ttc)
-            return sorted(ttcs)[0]
-        else: return 100
+            shortest_ttc = sorted(ttcs)[0]
+            index = ttcs.index(shortest_ttc)
+            shortest_ttc_frame = self.frames[index]
+            
+            return (shortest_ttc, shortest_ttc_frame)
+        else: return (100,100)
 
     @staticmethod
     def _on_obstacle_detected(weak_self, event):
@@ -328,6 +346,7 @@ class ObstacleSensor(object):
         vel = self._parent.get_velocity()
         speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
         self.speeds.append(speed)
+        self.frames.append(event.frame)
         
         
 
@@ -460,6 +479,11 @@ def game_loop(args):
             else: SpeedorAccel = "Accel"
 
              
+        #spawn_pts = world.world.get_map().get_spawn_points()
+        #for spawn_pt in spawn_pts:
+        #    grid.draw_location_on_grid(spawn_pt.location)
+        
+        
         # Spawn the actors
         blueprints = world.world.get_blueprint_library()
 
@@ -471,6 +495,7 @@ def game_loop(args):
 
         Adversary_spawn_point = carla.Transform(destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
         world.Adversary = world.world.try_spawn_actor(Adversary1_blueprint,Adversary_spawn_point)
+        #print(f"{type(world.Adversary)}")
         """
         if(args.debug):
             i,j = grid.return_grid_from_location(Adversary_spawn_point.location)
@@ -485,7 +510,9 @@ def game_loop(args):
         
         
         ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
+        #ego_spawn_point = carla.Transform(grid.return_location_from_grid(19,15),carla.Rotation(roll=0,pitch=0,yaw=-40))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
+        #print(f"{type(world.ego)}")
 
         world.collision_sensor = CollisionSensor(world.Adversary)    
         world.obstacle_sensor_adv = ObstacleSensor(world.Adversary)
@@ -522,7 +549,7 @@ def game_loop(args):
             world.world.apply_settings(settings)
 
             if "Normal" in args.file:
-                world.write_features(score,args)
+                world.write_features(score,adv.frame,args)
 
             world.destroy()
 
@@ -538,7 +565,7 @@ def simulate_categorical_distribution(world, adversary, args):
     if(args.debug): grid.draw_location_on_grid(adversary.dest_array[1], draw_time = 5)
     if(args.debug_nums): world.world.debug.draw_point(adversary.dest_array[1],size=0.2,color=carla.Color(255,255,255),life_time=100)
     
-    Adv3_dest = grid.return_location_from_grid(16,14)
+    Adv3_dest = grid.return_location_from_grid(17,17)
 
     if(adversary.dest_array[len(adversary.dest_array)-1] != Adv3_dest):
         adversary.cost += 999
@@ -610,6 +637,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
     #ego_agent = BasicAgent(world.ego, target_speed = 15,  opt_dict={'ignore_traffic_lights':'True'})
     ego_dest = grid.return_location_from_grid(8,0)
+    #ego_dest = grid.return_location_from_grid(19,3)
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
     if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)
@@ -644,6 +672,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         if(len(world.collision_sensor.get_collision_history())>0):
             #print("Ending simulation due to collision")
             adversary.cost += 0
+            adversary.frame = list(world.collision_sensor.get_collision_history().keys())[0]-1
             break
         
         
@@ -673,8 +702,11 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                     ego_ttc = world.obstacle_sensor_ego.get_shortest_ttc()
                     if(adv_ttc < ego_ttc): 
                         #print(f"TTC is {adv_ttc:8.6f}")
-                        adversary.cost += adv_ttc
-                    else: adversary.cost += ego_ttc
+                        adversary.cost += adv_ttc[0]
+                        adversary.frame = adv_ttc[1]
+                    else: 
+                        adversary.cost += ego_ttc[0]
+                        adversary.frame = ego_ttc[1]
                 else: print("Cost function not defined")
                 break
             else:
@@ -707,6 +739,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
 
         elif(not ego_done):
             world.ego.apply_control(ego_agent.run_step())
+            
         
         """
         if (ego_loca.y > (grid.left-10)):

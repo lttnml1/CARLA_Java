@@ -239,11 +239,11 @@ class World(object):
     def destroy(self):
         """Destroys all actors"""
         actors = [
-            self.ego,
-            self.Adversary,
             self.collision_sensor.sensor,
             self.obstacle_sensor_adv.sensor,
-            self.obstacle_sensor_ego.sensor]
+            self.obstacle_sensor_ego.sensor,
+            self.ego,
+            self.Adversary]
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -343,9 +343,11 @@ class ObstacleSensor(object):
         if not self:
             return
         self.history.append(event.distance)
-        vel = self._parent.get_velocity()
-        speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
-        self.speeds.append(speed)
+        
+        if(self._parent):
+            vel = self._parent.get_velocity()
+            speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
+            self.speeds.append(speed)
         self.frames.append(event.frame)
         
         

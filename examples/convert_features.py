@@ -26,7 +26,7 @@ def record_five_minutes(index, rows, label):
     return line
     
 def write_to_file(line, file):
-    with open(file,'a') as csvfile:
+    with open(file,'a',newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(line)
 

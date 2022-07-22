@@ -1,4 +1,4 @@
-﻿$file_path = "C:\data\Archive\20JUL2022"
+﻿$file_path = "C:\data\Archive\22JUL2022"
 $file_name = Get-ChildItem -File $file_path
 $file = Join-Path -Path $file_path -ChildPath $file_name
 (Get-Content $file) -replace ':','=' | Set-Content $file
@@ -9,8 +9,8 @@ $bad_paths = ($hash_table.GetEnumerator() | ? {[double]$_.Value -lt 0.0}).Key
 $good_paths = ($hash_table.GetEnumerator() | ? {[double]$_.Value -ge 0.0 -and [double]$_.Value -lt 500}).Key
 
 
-#$sub_files = Get-ChildItem -Path "C:\data\Adversary" -Recurse
-$sub_files = Get-ChildItem -Path "C:\data\Archive\20JUL2022\Normal_path_-9_758824_2000" -Recurse
+$sub_files = Get-ChildItem -Path "C:\data\Adversary" -Recurse
+#$sub_files = Get-ChildItem -Path "C:\data\Archive\20JUL2022\Normal_path_-9_758824_2000" -Recurse
 $to = Join-Path $file_path -ChildPath "bad_paths" 
 Foreach($bad_file_name in $bad_paths)
 {

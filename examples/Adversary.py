@@ -425,6 +425,7 @@ def game_loop(args):
     """
     world = None
     score = 0
+    bad_path = False
 
     try:
         client = carla.Client(args.host, args.port)
@@ -511,8 +512,8 @@ def game_loop(args):
             #world.world.debug.draw_string(Adversary_spawn_point.location+carla.Location(z=.5),"START",draw_shadow=True,color=carla.Color(0,0,255), life_time=60)
         
         
-        ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
-        #ego_spawn_point = carla.Transform(grid.return_location_from_grid(19,15),carla.Rotation(roll=0,pitch=0,yaw=-40))
+        #ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
+        ego_spawn_point = carla.Transform(grid.return_location_from_grid(6,20)+carla.Location(y=10),carla.Rotation(roll=0,pitch=0,yaw=-90))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
         #print(f"{type(world.ego)}")
 
@@ -528,6 +529,7 @@ def game_loop(args):
         for spd in speed_array:
             if math.isnan(spd) or spd < 0:
                 score += 999
+                bad_path = True
                 return 0
 
         adv = None
@@ -550,7 +552,7 @@ def game_loop(args):
             #settings.no_rendering_mode = False
             world.world.apply_settings(settings)
 
-            if "Normal" in args.file:
+            if "Normal" in args.file and not bad_path:
                 world.write_features(score,adv.frame,args)
 
             world.destroy()
@@ -636,10 +638,12 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_agent.set_destination(waypoint.transform.location)
     """
 
-    ego_agent = BasicAgent(world.ego, target_speed = 20,  opt_dict={'ignore_traffic_lights':'True'})
-    #ego_agent = BasicAgent(world.ego, target_speed = 15,  opt_dict={'ignore_traffic_lights':'True'})
-    ego_dest = grid.return_location_from_grid(8,0)
-    #ego_dest = grid.return_location_from_grid(19,3)
+    ego_agent = BasicAgent(world.ego, target_speed = 11,  opt_dict={'ignore_traffic_lights':'True'})
+    #ego_agent = BasicAgent(world.ego, target_speed = 40,  opt_dict={'ignore_traffic_lights':'True'})
+    #ego_dest = grid.return_location_from_grid(8,0) #straight
+    #ego_dest = grid.return_location_from_grid(0,7) #right turn
+    #ego_dest = grid.return_location_from_grid(19,3) #left turn
+    ego_dest = grid.return_location_from_grid(0,7)
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
     if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)

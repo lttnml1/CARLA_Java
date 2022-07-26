@@ -1,4 +1,4 @@
-﻿$file_path = "C:\data\Archive\22JUL2022"
+﻿$file_path = "C:\data\Archive\25JUL2022"
 $file_name = Get-ChildItem -File $file_path
 $file = Join-Path -Path $file_path -ChildPath $file_name
 (Get-Content $file) -replace ':','=' | Set-Content $file

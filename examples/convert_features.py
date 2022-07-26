@@ -41,7 +41,7 @@ def main():
         type=str)
     args = argparser.parse_args()
 
-
+    illegal_files = []
     for dirName, subdirList, fileList in os.walk(args.path):
         for fileName in fileList:
             file_feature_vector = []
@@ -62,12 +62,18 @@ def main():
                     if(row[0]==frame):
                         row_of_interest = line_count
                     line_count+=1
-                if(row_of_interest > 100): index = row_of_interest-100
-                elif(row_of_interest < 100 and row_of_interest > 0): index = 0
-                else: index = 'illegal'
+                if(row_of_interest >= 100): index = row_of_interest-100
+                elif((row_of_interest < 100 and row_of_interest > 0) or frame == "100"): index = 0
+                else: 
+                    index = 'illegal'
+                    illegal_files.append((fileName, row_of_interest))
                 if(index != 'illegal'):
                     line = record_five_minutes(index,rows,label)
                     write_to_file(line, os.path.join(os.path.dirname(args.path),"features_list.csv"))
+    print(f"Done writing, there are {len(illegal_files)} illegal files")
+    if(len(illegal_files) > 0):
+        for file in illegal_files:
+            print(file)        
 
 
 if __name__ == '__main__':

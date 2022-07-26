@@ -1,6 +1,6 @@
 ﻿$number_completed = (Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt).Count
 $first_ten =  Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt | foreach{[double]($_.split(":")[1])} | sort | select -First 10
-$good_paths = (Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt | Where {[double]($_.split(":")[1]) -ge 0.0 -and [double]($_.split(":")[1]) -lt 500}).Count
+$good_paths = (Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt | Where {[double]($_.split(":")[1]) -gt 0.0 -and [double]($_.split(":")[1]) -lt 500}).Count
 $bad_paths = (Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt | Where {[double]($_.split(":")[1]) -lt 0.0}).Count
 $accidents = (Get-Content C:\data\Adversary\ScoresTest2.txt,C:\data\Adversary\ScoresTest1.txt | Where {[double]($_.split(":")[1]) -eq -1.0}).Count
 $feature_count = (Get-ChildItem C:\data\Features\ -File).Count

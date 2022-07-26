@@ -49,6 +49,7 @@ from carla import ColorConverter as cc
 
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.simple_agent import SimpleAgent
+from agents.navigation.behavior_agent import BehaviorAgent
 
 from enum import Enum
 from shapely.geometry import Point
@@ -327,7 +328,8 @@ class ObstacleSensor(object):
         if(len(self.history)>0):
             ttcs = []
             for i in range(0,len(self.history)):
-                ttc = self.history[i] / self.speeds[i]
+                if(self.speeds[i] == 0): ttc = 100
+                else: ttc = self.history[i] / self.speeds[i]
                 ttcs.append(ttc)
             shortest_ttc = sorted(ttcs)[0]
             index = ttcs.index(shortest_ttc)
@@ -490,7 +492,7 @@ def game_loop(args):
         # Spawn the actors
         blueprints = world.world.get_blueprint_library()
 
-        Adversary1_blueprint=blueprints.filter("diamondback")[0]
+        Adversary1_blueprint=blueprints.filter("vehicle.diamondback.century")[0]
         Adversary1_blueprint.set_attribute('role_name', 'Adversary1')
 
         ego_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
@@ -638,12 +640,16 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_agent.set_destination(waypoint.transform.location)
     """
 
-    ego_agent = BasicAgent(world.ego, target_speed = 11,  opt_dict={'ignore_traffic_lights':'True'})
+    ego_agent = BasicAgent(world.ego, target_speed = 15,  opt_dict={'ignore_traffic_lights':'True'})
+    #ego_agent = BehaviorAgent(world.ego, behavior='cautious')
+    #ego_agent.ignore_traffic_lights(active=True)
+    #ego_agent.ignore_vehicles(active=False)
+    
     #ego_agent = BasicAgent(world.ego, target_speed = 40,  opt_dict={'ignore_traffic_lights':'True'})
     #ego_dest = grid.return_location_from_grid(8,0) #straight
     #ego_dest = grid.return_location_from_grid(0,7) #right turn
     #ego_dest = grid.return_location_from_grid(19,3) #left turn
-    ego_dest = grid.return_location_from_grid(0,7)
+    ego_dest = grid.return_location_from_grid(0,7)+carla.Location(x=10)
     waypoint = world.world.get_map().get_waypoint(ego_dest,project_to_road=True, lane_type=(carla.LaneType.Driving))
     ego_agent.set_destination(waypoint.transform.location)
     if(args.debug): grid.draw_location_on_grid(waypoint.transform.location)

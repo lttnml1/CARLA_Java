@@ -73,7 +73,29 @@ def main():
     print(f"Done writing, there are {len(illegal_files)} illegal files")
     if(len(illegal_files) > 0):
         for file in illegal_files:
-            print(file)        
+            print(file)
+
+    #now see which columns have all the same numbers
+    features_file = os.path.join(os.path.dirname(args.path),"features_list.csv")
+    with open(features_file,mode='r') as feature_csv_file:
+        csv_reader = csv.reader(feature_csv_file)
+        first_row = next(csv_reader)
+        all_rows_the_same = []
+        for i in range(0,len(first_row)): all_rows_the_same.append(True)
+        for row in csv_reader:
+            for i in range(0,len(all_rows_the_same)):
+                if(all_rows_the_same[i] == True):
+                    if(row[i] != first_row[i]):
+                        all_rows_the_same[i] = False
+
+    print(f"Columns with the same numbers (other than time) are: ")
+    num_features = 12
+    for i in range(0,len(all_rows_the_same)):
+        if all_rows_the_same[i] and i%(num_features+1) != 0:
+            print(i)
+            
+        
+
 
 
 if __name__ == '__main__':

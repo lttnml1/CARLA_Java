@@ -1,4 +1,4 @@
-﻿$file_path = "C:\data\Archive\25JUL2022"
+﻿$file_path = "C:\data\Archive\27JUL2022"
 $file_name = Get-ChildItem -File $file_path
 $file = Join-Path -Path $file_path -ChildPath $file_name
 (Get-Content $file) -replace ':','=' | Set-Content $file
@@ -6,7 +6,7 @@ $file_content = Get-Content $file | Out-String
 $hash_table = ConvertFrom-StringData -StringData $file_content
 #$hash_table.GetEnumerator() | Sort-Object -Property {[double]$_.Value}
 $bad_paths = ($hash_table.GetEnumerator() | ? {[double]$_.Value -lt 0.0}).Key
-$good_paths = ($hash_table.GetEnumerator() | ? {[double]$_.Value -ge 0.0 -and [double]$_.Value -lt 500}).Key
+$good_paths = ($hash_table.GetEnumerator() | ? {[double]$_.Value -gt 0.0 -and [double]$_.Value -lt 500}).Key
 
 
 $sub_files = Get-ChildItem -Path "C:\data\Adversary" -Recurse

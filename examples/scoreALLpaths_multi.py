@@ -47,6 +47,12 @@ def main():
         default=2,
         type=int,
         help='Number of servers to run (default: 2)')
+    argparser.add_argument(
+        '-f', '--first_port',
+        metavar='N',
+        default=2000,
+        type=int,
+        help='first port (default: 2000)')
 
 
     args = argparser.parse_args()
@@ -67,7 +73,7 @@ def main():
         port = 2000
         i = 1
         for dir in dirs_list:
-            command = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/scoreALLPaths.py --path " + dir + "\ --scores " + "c:\\data\\Adversary\\ScoresTest" + os.path.basename(dir) + ".txt" + " --port " + str(port + 4*i)
+            command = "C:/Users/m.litton_local/anaconda3/envs/carla_windows/python.exe c:/Users/m.litton_local/CARLA_Java/examples/scoreALLPaths.py --path " + dir + "\ --scores " + "c:\\data\\Adversary\\ScoresTest" + os.path.basename(dir) + ".txt" + " --port " + str(args.first_port + 4*i)
             commands.append(command) 
             i+=1
         

@@ -259,6 +259,7 @@ class CollisionSensor(object):
 
     def __init__(self, parent_actor):
         """Constructor method"""
+        
         self.sensor = None
         self.history = []
         self._parent = parent_actor
@@ -269,6 +270,7 @@ class CollisionSensor(object):
         # self to avoid circular reference.
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: CollisionSensor._on_collision(weak_self, event))
+        #print(f"Initializing collision sensor - attached to {self._parent}")
 
     def get_collision_history(self):
         """Gets the history of collisions"""
@@ -346,10 +348,10 @@ class ObstacleSensor(object):
             return
         self.history.append(event.distance)
         
-        if(self._parent):
-            vel = self._parent.get_velocity()
-            speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
-            self.speeds.append(speed)
+        #if(self._parent):
+        vel = self._parent.get_velocity()
+        speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) #m/s
+        self.speeds.append(speed)
         self.frames.append(event.frame)
         
         
@@ -681,7 +683,8 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
                 adversary.cost += 999
                 return 0
         
-        if(len(world.collision_sensor.get_collision_history())>0):
+        num_collisions = len(world.collision_sensor.get_collision_history())
+        if(num_collisions>0):
             #print("Ending simulation due to collision")
             adversary.cost += 0
             adversary.frame = list(world.collision_sensor.get_collision_history().keys())[0]-1

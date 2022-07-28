@@ -517,7 +517,7 @@ def game_loop(args):
         
         
         #ego_spawn_point = carla.Transform(grid.return_location_from_grid(8,20),carla.Rotation(roll=0,pitch=0,yaw=-90))
-        ego_spawn_point = carla.Transform(grid.return_location_from_grid(6,20)+carla.Location(y=10),carla.Rotation(roll=0,pitch=0,yaw=-90))
+        ego_spawn_point = carla.Transform(grid.return_location_from_grid(6,20)+carla.Location(y=0),carla.Rotation(roll=0,pitch=0,yaw=-90))
         world.ego = world.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
         #print(f"{type(world.ego)}")
 
@@ -642,7 +642,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_agent.set_destination(waypoint.transform.location)
     """
 
-    ego_agent = BasicAgent(world.ego, target_speed = 15,  opt_dict={'ignore_traffic_lights':'True'})
+    ego_agent = BasicAgent(world.ego, target_speed = 6,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':30.0})
     #ego_agent = BehaviorAgent(world.ego, behavior='cautious')
     #ego_agent.ignore_traffic_lights(active=True)
     #ego_agent.ignore_vehicles(active=False)

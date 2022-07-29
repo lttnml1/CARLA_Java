@@ -642,7 +642,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
     ego_agent.set_destination(waypoint.transform.location)
     """
 
-    ego_agent = BasicAgent(world.ego, target_speed = 6,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':30.0})
+    ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':30.0})
     #ego_agent = BehaviorAgent(world.ego, behavior='cautious')
     #ego_agent.ignore_traffic_lights(active=True)
     #ego_agent.ignore_vehicles(active=False)
@@ -661,6 +661,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
 
     
     stuck_counter = 0
+    in_crosswalk = False
     while True:
         world.get_features()
         world.world.tick()
@@ -671,6 +672,7 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
 
         ego_loca = world.ego.get_location()
         Adversary_loca = world.Adversary.get_location()
+        in_crosswalk = world.is_in_crosswalk(Adversary_loca)
         adv_ego_distance = world.get_2D_distance(ego_loca, Adversary_loca)
 
         
@@ -752,8 +754,11 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
             ego_done_time = world.world.get_snapshot().timestamp.elapsed_seconds
             ego_done =  True
 
-        elif(not ego_done):
+        elif(not ego_done and (not in_crosswalk or (Adversary_loca.y < 3) or (Adversary_loca.x < ego_loca.x))):
             world.ego.apply_control(ego_agent.run_step())
+
+        elif(in_crosswalk):
+            world.ego.apply_control(ego_agent.add_emergency_stop(carla.VehicleControl()))
             
         
         """

@@ -2,7 +2,7 @@
 
 # Author:           Matthew Litton
 # Last Modified:    7/18/2022
-# Purpose:          Main script for running/retrieving data from simulation for Cross-Entropy
+# Purpose:          Main script for running/retrieving data from simulation for Cross-Entropy - customized for Adversary3_Only
 
 from __future__ import print_function
 

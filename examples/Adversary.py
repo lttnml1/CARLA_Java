@@ -123,9 +123,9 @@ class World(object):
         snapshot = self.world.get_snapshot()
         frame = snapshot.frame
         actors = []
-        ActorSnapshot_ego = snapshot.find(self.Adversary.id)
+        ActorSnapshot_ego = snapshot.find(self.ego.id)
         actors.append(ActorSnapshot_ego)
-        ActorSnapshot_adv = snapshot.find(self.ego.id)
+        ActorSnapshot_adv = snapshot.find(self.Adversary.id)
         actors.append(ActorSnapshot_adv)
 
         frame_feature_vector = []
@@ -670,10 +670,18 @@ def simulate_normal_distribution(world, adversary, args, SpeedorAccel):
         Adversary_speed = world.get_vehicle_speed(world.Adversary)
         ego_speed = world.get_vehicle_speed(world.ego)    
 
+
         ego_loca = world.ego.get_location()
         Adversary_loca = world.Adversary.get_location()
         in_crosswalk = world.is_in_crosswalk(Adversary_loca)
         adv_ego_distance = world.get_2D_distance(ego_loca, Adversary_loca)
+
+        snapshot = world.world.get_snapshot()        
+        ActorSnapshot_ego = snapshot.find(world.ego.id)
+        snapshot_vel = ActorSnapshot_ego.get_velocity()
+        snapshot_vel_val = (math.sqrt(snapshot_vel.x ** 2 + snapshot_vel.y ** 2 + snapshot_vel.z ** 2))
+        ddd=world.get_2D_distance(ego_loca,Adversary_loca)
+        #print(f"{snapshot.timestamp.frame}:\t{ddd}\t{snapshot_vel_val}")
 
         
         #This detects if the Advesary is stuck (i.e. hasn't moved squares for 100 ticks (5 seconds))

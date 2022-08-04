@@ -5,6 +5,7 @@
 # Purpose:          
 
 import argparse
+from random import randrange
 
 
 
@@ -29,11 +30,11 @@ def main():
         type=str)
     args = argparser.parse_args()
 
-    file = f"C:\\data\\Scores\\TESTt{args.t_value}_Adversary3_Scores.txt"
+    file = f"C:\\data\\Scores\\t{args.t_value}_Scores.txt"
     score = 0.0
     with open(file,mode='w') as f:
         for i in range(int(args.start),int(args.end)+1):
-            f.write(f"NormalDistrib#{i}:{score:8.6f}\n")
+            f.write(f"NormalDistrib#{i}:{randrange(-10,100):8.6f}\n")
 
         
       

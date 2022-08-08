@@ -80,7 +80,7 @@ def read_csv(filename):
 
     for row in reader:
         for h, v in zip(headers, row):
-            column[h].append((float(row[0]), float(v)))
+            column[h].append(float(v))
 
     return column
 
@@ -305,8 +305,7 @@ def execute_scenario(world, scenario):
 
         if adversary_agent.done():
             small_array = []
-            timestamp = world.world.get_snapshot().timestamp.frame
-            small_array.append(timestamp)
+            small_array.append(dest_index-1)
             small_array.append(adversary_speed)
             big_array.append(small_array)
                
@@ -343,16 +342,19 @@ def execute_scenario(world, scenario):
 
 def score_scenario(world, scenario):
     
-    dataSet1 = read_csv('c:\\data\\test_csv.csv')
+    dataSet1 = {
+        'time': [0,1,2,3,4],
+        'speed': [8.678609289, 9.555141637, 8.995255402, 9.656090744, 10.22768276]
+    }
     dataSet = {
          'time': [0, 1, 2],
          'a': [100.0, -1.0, -2.0],
          'b': [20.0, 2.0, -10.0]
     }
-    spec = rtamt.STLSpecification(language=rtamt.Language.PYTHON)
+    spec = rtamt.STLDiscreteTimeSpecification()
     spec.name = 'STL discrete-time online Python monitor'
-    spec.declare_var('a', 'float')
-    spec.spec = 'a>0'
+    spec.declare_var('speed', 'float')
+    spec.spec = 'speed>10'
 
     try:
         spec.parse()
@@ -361,7 +363,7 @@ def score_scenario(world, scenario):
         print('STL Parse Exception: {}'.format(err))
         sys.exit()
 
-    rob = spec.evaluate(dataSet)
+    rob = spec.evaluate(dataSet1)
     print('Robustness: ' + str(rob))
 
 # ==============================================================================

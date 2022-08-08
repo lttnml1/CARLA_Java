@@ -1,26 +1,68 @@
+#!/usr/bin/env python
 import sys
+import csv
 import rtamt
+import os
+
+from rtamt.spec.stl.discrete_time.specification import Semantics
+
+def read_csv(filename):
+    f = open(filename, 'r')
+    reader = csv.reader(f)
+    headers = next(reader, None)
+
+    column = {}
+    for h in headers:
+        column[h] = []
+
+    for row in reader:
+        for h, v in zip(headers, row):
+            column[h].append(float(v))
+
+    return column
+
 
 def monitor():
+
+    read_file = 'c:\\data\\log_file.csv'
+    write_file = 'c:\\data\\rob.csv'
+    dataSet = read_csv(read_file)
+    
     spec = rtamt.STLDiscreteTimeSpecification()
-    spec.name = 'Bounded-response Request-Grant'
-
-    spec.declare_var('req', 'float')
-    spec.declare_var('gnt', 'float')
+    spec.name = 'Test'
+    spec.declare_var('distance', 'float')
+    spec.declare_var('ego_speed', 'float')
     spec.declare_var('out', 'float')
-
-    spec.spec = 'out = always((req>=3) implies (eventually[0:5](gnt>=3)))'
+    spec.set_var_io_type('distance', 'input')
+    spec.set_var_io_type('ego_speed', 'output')
+    spec.spec = 'out = ((distance < 5.0)  implies (eventually[0:10](ego_speed < 1)))'
+    spec.semantics = Semantics.STANDARD
 
     try:
         spec.parse()
-        spec.update(0, [('req', 0.1), ('gnt', 0.3)])
-        spec.update(1, [('req', 0.45), ('gnt', 0.12)])
-        spec.update(2, [('req', 0.78), ('gnt', 0.18)])
-        nb_violations = spec.sampling_violation_counter # nb_violations = 0
+        spec.pastify()
     except rtamt.STLParseException as err:
         print('STL Parse Exception: {}'.format(err))
         sys.exit()
 
+    rob_vals = []
+    for i in range(len(dataSet['distance'])):
+        rob = spec.update(i, [('distance', dataSet['distance'][i]), ('ego_speed', dataSet['ego_speed'][i])])
+        rob_vals.append((dataSet['time'][i],rob))
+    
+    with open(write_file,'w',newline='') as writer:
+        csv_writer = csv.writer(writer)
+        csv_writer.writerows(rob_vals)
+
+
+
+
+
 if __name__ == '__main__':
     # Process arguments
+    
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    os.chdir(dname)
+
     monitor()

@@ -10,7 +10,6 @@ import argparse
 import collections
 import datetime
 import glob
-import logging
 import math
 import os
 import numpy.random as random
@@ -55,6 +54,8 @@ from agents.navigation.behavior_agent import BehaviorAgent
 from enum import Enum
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+
+from rtamt.spec.stl.discrete_time.specification import Semantics
 
 # ==============================================================================
 # -- Helper Functions ----------------------------------------------------------
@@ -123,6 +124,36 @@ class Scenario(object):
                 break
         return isBadPath
 
+# ==============================================================================
+# -- CollisionSensor -----------------------------------------------------------
+# ==============================================================================
+class ObstacleSensor(object):
+
+    def __init__(self, parent_actor):       
+        self.sensor = None
+        self._parent = parent_actor
+        world = self._parent.get_world()
+        blueprint = world.get_blueprint_library().find('sensor.other.obstacle')
+        blueprint.set_attribute('distance','5')
+        blueprint.set_attribute('hit_radius','0.5')
+        blueprint.set_attribute('only_dynamics','True')
+        blueprint.set_attribute('debug_linetrace','True')
+        blueprint.set_attribute('sensor_tick','0.05')
+        self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._parent)
+        weak_self = weakref.ref(self)
+        self.sensor.listen(lambda event: ObstacleSensor._on_obstacle_detected(weak_self, event))
+        self.history = {}
+
+    @staticmethod
+    def _on_obstacle_detected(weak_self, event):
+        self = weak_self()
+        if not self:
+            return
+        #print(f"Obstacle detected by {event.actor.parent} at frame {event.frame}:\t{event.other_actor} at {event.distance}")
+        self.history[event.frame] = event.distance
+        
+
+
 
 # ==============================================================================
 # -- World ---------------------------------------------------------------
@@ -144,10 +175,12 @@ class World(object):
             sys.exit(1)
         
         self.ego = None
+        self.obstacle_sensor_ego = None
         self.adversary = None
     
     def destroy(self):
         actors = [
+            self.obstacle_sensor_ego.sensor,
             self.adversary,
             self.ego]
         for actor in actors:
@@ -174,6 +207,14 @@ class World(object):
             i, j = self._grid.return_coords_from_point(point) 
             dest = self._grid.return_location_from_grid(i,j)
             scenario.destination_array.append(dest)
+    
+    def draw_points_and_locations(self, points):
+        counter = 0
+        for point in points:
+            self.world.debug.draw_point(point.location,size=0.2,color=carla.Color(255,255,255),life_time=30)
+            #self.world.debug.draw_string(point.location + carla.Location(z=3),str(point.location.x)+',\n'+str(point.location.y),color=carla.Color(255,0,0),life_time=30)
+            self.world.debug.draw_string(point.location + carla.Location(z=3),str(counter),color=carla.Color(255,0,0),life_time=30)
+            counter += 1
 
 
 # ==============================================================================
@@ -238,6 +279,9 @@ def game_loop(args):
         settings.fixed_delta_seconds = 0.05
         if(args.no_render): settings.no_rendering_mode = True
         sim_world.apply_settings(settings)
+        tm = client.get_trafficmanager(8000)
+        tm.set_synchronous_mode(True)
+        tm.set_random_device_seed(0)
 
         grid = Grid(-65,-100,-10,30)
         scenario = Scenario(args)
@@ -257,14 +301,32 @@ def game_loop(args):
 
         adversary_blueprint=blueprints.filter("vehicle.diamondback.century")[0]
         adversary_blueprint.set_attribute('role_name', 'adversary')
+
+        ego_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
+        ego_blueprint.set_attribute('role_name','ego')
+
         adversary_spawn_point = carla.Transform(scenario.destination_array[0],carla.Rotation(roll=0,pitch=0,yaw=0))
-        world.adversary = world.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
+
+        spawn_points = world.map.get_spawn_points()
+        relevant_spawn_points = []
+        for sp in spawn_points:
+            if (sp.location.x<-30 and sp.location.x>-135 and sp.location.y<65 and sp.location.y>-45):
+                relevant_spawn_points.append(sp)
+        #world.draw_points_and_locations(relevant_spawn_points)
+        ego_spawn_point = relevant_spawn_points[18]
+
+        world.adversary = world.world.try_spawn_actor(adversary_blueprint,relevant_spawn_points[14])
+        world.ego = world.world.try_spawn_actor(ego_blueprint, ego_spawn_point)
+        world.obstacle_sensor_ego = ObstacleSensor(world.ego)
+        world.ego.set_autopilot(True,8000)
+        tm.ignore_lights_percentage(world.ego,100)
+        tm.vehicle_percentage_speed_difference(world.ego,60)
 
         #This is necessary to ensure vehicle "stabilizes" after "falling"
         for i in range (0,30):
             world.world.tick()
 
-        execute_scenario(world, scenario)
+        execute_scenario(world, scenario, spectator)
 
         score_scenario(world, scenario)        
 
@@ -272,6 +334,7 @@ def game_loop(args):
         print(f"{scenario.score:8.6f}")
 
         if world is not None:
+            tm.set_synchronous_mode(False)
             settings = world.world.get_settings()
             settings.synchronous_mode = False
             settings.fixed_delta_seconds = None
@@ -284,7 +347,7 @@ def game_loop(args):
 # -- execute_scenario() --------------------------------------------------------
 # ==============================================================================
 
-def execute_scenario(world, scenario):
+def execute_scenario(world, scenario, spectator):
     dest_index = 1
     #set initial destination and target_speed
     destination = scenario.destination_array[dest_index]
@@ -297,17 +360,21 @@ def execute_scenario(world, scenario):
     
     while True:
         world.world.tick()
+
         adversary_loca = world.adversary.get_location()
+        ego_loca = world.ego.get_location()
         adversary_speed = get_vehicle_speed(world.adversary)
-
+        ego_speed = get_vehicle_speed(world.ego)      
         
-
-
+        small_array = []
+        frame = world.world.get_snapshot().timestamp.frame
+        small_array.append(frame)
+        distance = get_2D_distance(ego_loca,adversary_loca)
+        small_array.append(distance)
+        small_array.append(ego_speed)
+        big_array.append(small_array)
+        
         if adversary_agent.done():
-            small_array = []
-            small_array.append(dest_index-1)
-            small_array.append(adversary_speed)
-            big_array.append(small_array)
                
             if (dest_index >= len(scenario.destination_array)-1):
                     #print("Adversary's route is complete, breaking out of loop")
@@ -327,8 +394,8 @@ def execute_scenario(world, scenario):
         control.manual_gear_shift = False
         world.adversary.apply_control(control)
     
-    file = "c:\\data\\test_csv.csv"
-    header = ['time','speed']
+    file = "c:\\data\\log_file.csv"
+    header = ['time','distance','ego_speed']
     with open(file,'w',newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(header)
@@ -342,19 +409,19 @@ def execute_scenario(world, scenario):
 
 def score_scenario(world, scenario):
     
-    dataSet1 = {
-        'time': [0,1,2,3,4],
-        'speed': [8.678609289, 9.555141637, 8.995255402, 9.656090744, 10.22768276]
-    }
-    dataSet = {
-         'time': [0, 1, 2],
-         'a': [100.0, -1.0, -2.0],
-         'b': [20.0, 2.0, -10.0]
-    }
+    
+    read_file = 'c:\\data\\log_file.csv'
+    dataSet = read_csv(read_file)
+    
     spec = rtamt.STLDiscreteTimeSpecification()
-    spec.name = 'STL discrete-time online Python monitor'
-    spec.declare_var('speed', 'float')
-    spec.spec = 'speed>10'
+    spec.name = 'Test'
+    spec.declare_var('distance', 'float')
+    spec.declare_var('ego_speed', 'float')
+    spec.declare_var('out', 'float')
+    spec.set_var_io_type('distance', 'input')
+    spec.set_var_io_type('ego_speed', 'output')
+    spec.spec = 'out = ((distance < 5.0)  implies (eventually[0:1](ego_speed < 5)))'
+    spec.semantics = Semantics.OUTPUT_ROBUSTNESS
 
     try:
         spec.parse()
@@ -363,9 +430,29 @@ def score_scenario(world, scenario):
         print('STL Parse Exception: {}'.format(err))
         sys.exit()
 
-    rob = spec.evaluate(dataSet1)
-    print('Robustness: ' + str(rob))
+    for i in range(len(dataSet['distance'])):
+        rob = spec.update(i, [('distance', dataSet['distance'][i]), ('ego_speed', dataSet['ego_speed'][i])])
+        print(rob)
+    violations = spec.sampling_violation_counter
 
+    print(f"Standard robustness: {rob}")
+    print(f"Violations: {violations}")
+
+    '''
+    write_file = ('c:\\data\\log_file_with_rob.csv')
+    with open(read_file, mode='r') as inFile, open(write_file, "w",newline='') as outFile:
+        csv_reader = csv.reader(inFile)
+        csv_writer = csv.writer(outFile)
+        headers = next(csv_reader, None)
+        headers.append('robustness')
+        csv_writer.writerow(headers)
+        line_count = 0
+        for row in csv_reader:
+            new_row = row
+            new_row.append(rob[line_count][1])
+            csv_writer.writerow(new_row)
+            line_count += 1
+    '''
 # ==============================================================================
 # -- main() --------------------------------------------------------------------
 # ==============================================================================

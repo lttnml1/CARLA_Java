@@ -4,8 +4,6 @@ import csv
 import rtamt
 import os
 
-from rtamt.spec.stl.discrete_time.specification import Semantics
-
 def read_csv(filename):
     f = open(filename, 'r')
     reader = csv.reader(f)
@@ -22,47 +20,42 @@ def read_csv(filename):
     return column
 
 
-def monitor():
+import sys
+import rtamt
 
-    read_file = 'c:\\data\\log_file.csv'
-    write_file = 'c:\\data\\rob.csv'
-    dataSet = read_csv(read_file)
-    
+def monitor():
+    # data
+    dataSet = {
+         'time': [0, 1, 2],
+         'a': [100.0, -1.0, -2.0],
+         'b': [20.0, 2.0, -10.0]
+    }
+
+    dataSet1 = read_csv('c:\\Users\\m.litton_local\\CARLA_Java\\STL_Monitor\\example1.csv')
+
+    # # stl
     spec = rtamt.STLDiscreteTimeSpecification()
-    spec.name = 'Test'
-    spec.declare_var('distance', 'float')
-    spec.declare_var('ego_speed', 'float')
-    spec.declare_var('out', 'float')
-    spec.set_var_io_type('distance', 'input')
-    spec.set_var_io_type('ego_speed', 'output')
-    spec.spec = 'out = ((distance < 5.0)  implies (eventually[0:10](ego_speed < 1)))'
-    spec.semantics = Semantics.STANDARD
+    spec.name = 'STL discrete-time online Python monitor'
+    spec.declare_var('req', 'float')
+    spec.declare_var('gnt', 'float')
+    spec.spec = 'always((req>=3) implies (eventually[0:5](gnt>=3)))'
 
     try:
         spec.parse()
-        spec.pastify()
     except rtamt.STLParseException as err:
         print('STL Parse Exception: {}'.format(err))
         sys.exit()
 
-    rob_vals = []
-    for i in range(len(dataSet['distance'])):
-        rob = spec.update(i, [('distance', dataSet['distance'][i]), ('ego_speed', dataSet['ego_speed'][i])])
-        rob_vals.append((dataSet['time'][i],rob))
-    
-    with open(write_file,'w',newline='') as writer:
-        csv_writer = csv.writer(writer)
-        csv_writer.writerows(rob_vals)
-
-
-
-
+    rob = spec.evaluate(dataSet1)
+    print(str(rob))
+    if(len(rob)>0):
+        min_rob = rob[0][1]
+        for r in rob:
+            if r[1] < min_rob:
+                min_rob = rob[1]
+        print(f"Minimum robustness: {str(min_rob)}")
 
 if __name__ == '__main__':
     # Process arguments
-    
-    abspath = os.path.abspath(__file__)
-    dname = os.path.dirname(abspath)
-    os.chdir(dname)
 
     monitor()

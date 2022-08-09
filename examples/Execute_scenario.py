@@ -411,6 +411,7 @@ def score_scenario(world, scenario):
     
     
     read_file = 'c:\\data\\log_file.csv'
+    write_file = 'c:\\data\\log_file_with_rob.csv'
     dataSet = read_csv(read_file)
     
     spec = rtamt.STLDiscreteTimeSpecification()
@@ -418,28 +419,29 @@ def score_scenario(world, scenario):
     spec.declare_var('distance', 'float')
     spec.declare_var('ego_speed', 'float')
     spec.declare_var('out', 'float')
-    spec.set_var_io_type('distance', 'input')
-    spec.set_var_io_type('ego_speed', 'output')
-    spec.spec = 'out = ((distance < 5.0)  implies (eventually[0:1](ego_speed < 5)))'
+    spec.set_var_io_type('distance','input')
+    spec.set_var_io_type('ego_speed','output')
+    
+    spec.spec = 'out = always((distance < 5.0)  implies (eventually[0:10](ego_speed < 0.1)))'
+    #spec.semantics = Semantics.STANDARD
     spec.semantics = Semantics.OUTPUT_ROBUSTNESS
-
+    
     try:
         spec.parse()
-        spec.pastify()
     except rtamt.STLParseException as err:
         print('STL Parse Exception: {}'.format(err))
         sys.exit()
 
-    for i in range(len(dataSet['distance'])):
-        rob = spec.update(i, [('distance', dataSet['distance'][i]), ('ego_speed', dataSet['ego_speed'][i])])
-        print(rob)
-    violations = spec.sampling_violation_counter
+    rob = spec.evaluate(dataSet)
+    
+    if(len(rob)>0):
+        min_rob = rob[0][1]
+        for r in rob:
+            if r[1] < min_rob:
+                min_rob = rob[1]
+        print(f"Minimum robustness: {str(min_rob)}")
 
-    print(f"Standard robustness: {rob}")
-    print(f"Violations: {violations}")
-
-    '''
-    write_file = ('c:\\data\\log_file_with_rob.csv')
+    
     with open(read_file, mode='r') as inFile, open(write_file, "w",newline='') as outFile:
         csv_reader = csv.reader(inFile)
         csv_writer = csv.writer(outFile)
@@ -452,7 +454,6 @@ def score_scenario(world, scenario):
             new_row.append(rob[line_count][1])
             csv_writer.writerow(new_row)
             line_count += 1
-    '''
 # ==============================================================================
 # -- main() --------------------------------------------------------------------
 # ==============================================================================

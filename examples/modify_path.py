@@ -62,8 +62,8 @@ def main():
         type=str)
     args = argparser.parse_args()
 
-    #modify_files(args)
-    remove_mod(args)
+    modify_files(args)
+    #remove_mod(args)
 
                         
                     

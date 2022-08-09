@@ -111,17 +111,22 @@ class Scenario(object):
     
     def score_path(self):
         isBadPath = False
-        for i in range(0,len(self.point_array)):
-            speed = self.speed_array[i]
-            #no NaN speed
-            if math.isnan(speed):
-                isBadPath = True
-                self.score = sys.float_info.max/2000
-                break
-            #speed is non-negative    
-            elif speed<0:
-                self.score += 100*abs(speed)
-                break
+        if(self.point_array[-1] != '311'): 
+            isBadPath = True
+            self.score = 999
+        else:
+            for i in range(0,len(self.point_array)):
+                speed = self.speed_array[i]
+                #no NaN speed
+                if math.isnan(speed):
+                    isBadPath = True
+                    #self.score = sys.float_info.max/2000
+                    self.score = 999
+                    break
+                #speed is non-negative    
+                elif speed<0:
+                    self.score += 100*abs(speed)
+                    break
         return isBadPath
 
 # ==============================================================================
@@ -137,7 +142,7 @@ class ObstacleSensor(object):
         blueprint.set_attribute('distance','5')
         blueprint.set_attribute('hit_radius','0.5')
         blueprint.set_attribute('only_dynamics','True')
-        blueprint.set_attribute('debug_linetrace','True')
+        #blueprint.set_attribute('debug_linetrace','True')
         blueprint.set_attribute('sensor_tick','0.05')
         self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._parent)
         weak_self = weakref.ref(self)
@@ -180,11 +185,12 @@ class World(object):
     
     def destroy(self):
         actors = [
-            self.obstacle_sensor_ego.sensor,
             self.adversary,
             self.ego]
         for actor in actors:
             if actor is not None:
+                if actor == self.ego:
+                    self.obstacle_sensor_ego.sensor.destroy()
                 actor.destroy()
 
     def draw_location_on_grid(self, location, draw_time = 10):
@@ -272,8 +278,9 @@ def game_loop(args):
     try:
         client = carla.Client(args.host, args.port)
         client.set_timeout(4.0)
+        
         sim_world = client.get_world()
-
+        
         settings = sim_world.get_settings()
         settings.synchronous_mode = True
         settings.fixed_delta_seconds = 0.05
@@ -315,7 +322,7 @@ def game_loop(args):
         #world.draw_points_and_locations(relevant_spawn_points)
         ego_spawn_point = relevant_spawn_points[18]
 
-        world.adversary = world.world.try_spawn_actor(adversary_blueprint,relevant_spawn_points[14])
+        world.adversary = world.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
         world.ego = world.world.try_spawn_actor(ego_blueprint, ego_spawn_point)
         world.obstacle_sensor_ego = ObstacleSensor(world.ego)
         world.ego.set_autopilot(True,8000)
@@ -326,9 +333,9 @@ def game_loop(args):
         for i in range (0,30):
             world.world.tick()
 
-        execute_scenario(world, scenario, spectator)
+        isScoreable = execute_scenario(world, scenario, spectator)
 
-        score_scenario(world, scenario)        
+        if isScoreable: score_scenario(world, scenario)        
 
     finally:
         print(f"{scenario.score:8.6f}")
@@ -348,6 +355,7 @@ def game_loop(args):
 # ==============================================================================
 
 def execute_scenario(world, scenario, spectator):
+    isScoreable = True
     dest_index = 1
     #set initial destination and target_speed
     destination = scenario.destination_array[dest_index]
@@ -357,9 +365,11 @@ def execute_scenario(world, scenario, spectator):
     adversary_agent = SimpleAgent(world.adversary, destination, target_speed=target_speed)
 
     big_array = []
+    stuck_counter = 0
     
     while True:
         world.world.tick()
+        stuck_counter += 1
 
         adversary_loca = world.adversary.get_location()
         ego_loca = world.ego.get_location()
@@ -373,6 +383,15 @@ def execute_scenario(world, scenario, spectator):
         small_array.append(distance)
         small_array.append(ego_speed)
         big_array.append(small_array)
+
+        if(stuck_counter % 100 == 0):
+            i,j = world._grid.return_grid_from_location(adversary_loca)
+            pt = world._grid.return_point_from_coords(i,j)
+            if(pt == int(scenario.point_array[dest_index - 1])):
+                #print("Exiting because stuck")
+                scenario.score += stuck_counter * 100
+                isScoreable = False
+                break
         
         if adversary_agent.done():
                
@@ -381,6 +400,7 @@ def execute_scenario(world, scenario, spectator):
                     break
             else:
                 dest_index += 1
+                stuck_counter = 0
                 new_dest = scenario.destination_array[dest_index]
                 current_speed = adversary_speed
                 distance = get_2D_distance(adversary_loca,new_dest)
@@ -394,12 +414,15 @@ def execute_scenario(world, scenario, spectator):
         control.manual_gear_shift = False
         world.adversary.apply_control(control)
     
-    file = "c:\\data\\log_file.csv"
-    header = ['time','distance','ego_speed']
-    with open(file,'w',newline='') as csvfile:
-        csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(header)
-        csvwriter.writerows(big_array)
+    if isScoreable:
+        file = "c:\\data\\log_file.csv"
+        header = ['time','distance','ego_speed']
+        with open(file,'w',newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(header)
+            csvwriter.writerows(big_array)
+    
+    return isScoreable
 
         
 
@@ -436,10 +459,15 @@ def score_scenario(world, scenario):
     
     if(len(rob)>0):
         min_rob = rob[0][1]
-        for r in rob:
-            if r[1] < min_rob:
-                min_rob = rob[1]
-        print(f"Minimum robustness: {str(min_rob)}")
+        if math.isinf(min_rob):
+            #min_rob = sys.float_info.max/1000000
+            min_rob = 9999
+        else:
+            for r in rob:
+                if r[1] < min_rob:
+                    min_rob = rob[1]
+        #print(f"Minimum robustness: {str(min_rob)}")
+        scenario.score += min_rob
 
     
     with open(read_file, mode='r') as inFile, open(write_file, "w",newline='') as outFile:

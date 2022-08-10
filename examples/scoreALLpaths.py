@@ -38,8 +38,6 @@ def main():
     path = args.path
     
     try:
-        
-
         for dirName, subdirList, fileList in os.walk(path):
             fileList.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
             for fileName in fileList:

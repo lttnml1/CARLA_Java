@@ -361,12 +361,15 @@ def execute_scenario(world, scenario, spectator):
     distance = get_2D_distance(adversary_loca,destination)
     target_speed = 0 + scenario.accel_array[dest_index-1] * (distance/1 * 3.6)  
     adversary_agent = SimpleAgent(world.adversary, destination, target_speed=target_speed)
-    ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':30.0})
+    ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':10.0})
     ego_agent.set_destination(world.map.get_spawn_points()[31].location)
 
     big_array = []
     stuck_counter = 0
     
+    d = get_2D_distance(world._grid.return_location_from_grid(18,0),world._grid.return_location_from_grid(19,1))
+    print(f"The distance between 360 and 381 is: {d}")
+
     while True:
         world.world.tick()
         stuck_counter += 1
@@ -388,19 +391,22 @@ def execute_scenario(world, scenario, spectator):
         if(stuck_counter % 100 == 0):
             i,j = world._grid.return_grid_from_location(adversary_loca)
             pt = world._grid.return_point_from_coords(i,j)
+            
             if(pt == int(scenario.point_array[dest_index - 1])):
-                #print("Exiting because stuck")
+                print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
                 scenario.score += stuck_counter * 100
                 isScoreable = False
                 break
+            else:
+                print(f"Not stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
         
         if(distance < 2.5):#there's an accident, figure out who's fault it is - we only care if it's the ego's fault
             #print(f"Breaking out of loop due to accident at distance: {distance}")
             #if the ego detected an obstacle within the last 10 frames, it's likely ego's fault
             if len(world.obstacle_sensor_ego.history['frame'])>0:
                 last_obstacle_detected = world.obstacle_sensor_ego.history['frame'][-1]
-                if(last_obstacle_detected >= (frame-10) and ego_speed > 1):
-                    #print(f"Accident is the ego's fault: Current frame:\t{frame}, Last obstacle:\t{last_obstacle_detected}")
+                if(last_obstacle_detected >= (frame-5) and ego_speed > 1):
+                    #print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
                     scenario.score += -100
                 #else:
                     #print(f"Accident is bike's fault")

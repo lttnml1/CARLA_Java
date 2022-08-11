@@ -67,7 +67,7 @@ def get_2D_distance(loc1, loc2):
 def get_vehicle_speed(actor):
     """Returns vehicle speed in km/hr"""
     vel = actor.get_velocity()
-    speed = 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)#m/s * 1km/1000m * 3600s/1hr = km/hr (i.e., m/s * 3.6 = km/hr)
+    speed = 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)#m/s * 1km/1000m * 3600s/1hr = km/hr (i.e., m/s * 3.6 = km/hr, 3.6 = (km*s)/(m*hr))
     return speed
 
 def read_csv(filename):
@@ -111,9 +111,13 @@ class Scenario(object):
     
     def score_path(self):
         isBadPath = False
-        if(self.point_array[-1] != '311'): 
+        #if(self.point_array[-1] != '311'): 
+        #    isBadPath = True
+        #    self.score = 999
+        #else:
+        if(self.accel_array[0]<0):
             isBadPath = True
-            self.score = 999
+            self.score += 999
         else:
             for i in range(0,len(self.point_array)):
                 speed = self.speed_array[i]
@@ -121,16 +125,17 @@ class Scenario(object):
                 if math.isnan(speed):
                     isBadPath = True
                     #self.score = sys.float_info.max/2000
-                    self.score = 999
+                    self.score += 999
                     break
                 #speed is non-negative    
                 elif speed<0:
+                    isBadPath = True
                     self.score += 100*abs(speed)
                     break
         return isBadPath
 
 # ==============================================================================
-# -- CollisionSensor -----------------------------------------------------------
+# -- Obstacle Sensor -----------------------------------------------------------
 # ==============================================================================
 class ObstacleSensor(object):
 
@@ -147,7 +152,7 @@ class ObstacleSensor(object):
         self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._parent)
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: ObstacleSensor._on_obstacle_detected(weak_self, event))
-        self.history = {}
+        self.history = {'frame':[],'distance':[]}
 
     @staticmethod
     def _on_obstacle_detected(weak_self, event):
@@ -155,10 +160,8 @@ class ObstacleSensor(object):
         if not self:
             return
         #print(f"Obstacle detected by {event.actor.parent} at frame {event.frame}:\t{event.other_actor} at {event.distance}")
-        self.history[event.frame] = event.distance
-        
-
-
+        self.history['frame'].append(event.frame)
+        self.history['distance'].append(event.distance)
 
 # ==============================================================================
 # -- World ---------------------------------------------------------------
@@ -222,7 +225,6 @@ class World(object):
             self.world.debug.draw_string(point.location + carla.Location(z=3),str(counter),color=carla.Color(255,0,0),life_time=30)
             counter += 1
 
-
 # ==============================================================================
 # -- Grid ---------------------------------------------------------------
 # ==============================================================================
@@ -272,7 +274,7 @@ class Grid(object):
 # -- Game Loop ---------------------------------------------------------
 # ==============================================================================
 
-def game_loop(args):
+def game_loop(args, scenario):
 
     world = None
     try:
@@ -286,18 +288,13 @@ def game_loop(args):
         settings.fixed_delta_seconds = 0.05
         if(args.no_render): settings.no_rendering_mode = True
         sim_world.apply_settings(settings)
-        tm = client.get_trafficmanager(8000)
-        tm.set_synchronous_mode(True)
-        tm.set_random_device_seed(0)
+        #tm = client.get_trafficmanager(8000)
+        #tm.set_synchronous_mode(True)
+        #tm.set_random_device_seed(0)
 
         grid = Grid(-65,-100,-10,30)
-        scenario = Scenario(args)
         world = World(client.get_world(), args, grid)
         world.convert_points_to_locations(scenario)
-
-        #ensure path is good - like AbstractScore.java
-        if(scenario.score_path()):
-            return 0
 
         #set the view to the middle of the grid
         spectator = world.world.get_spectator()
@@ -319,21 +316,21 @@ def game_loop(args):
         for sp in spawn_points:
             if (sp.location.x<-30 and sp.location.x>-135 and sp.location.y<65 and sp.location.y>-45):
                 relevant_spawn_points.append(sp)
-        #world.draw_points_and_locations(relevant_spawn_points)
+        #world.draw_points_and_locations(spawn_points)
         ego_spawn_point = relevant_spawn_points[18]
 
         world.adversary = world.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
         world.ego = world.world.try_spawn_actor(ego_blueprint, ego_spawn_point)
         world.obstacle_sensor_ego = ObstacleSensor(world.ego)
-        world.ego.set_autopilot(True,8000)
-        tm.ignore_lights_percentage(world.ego,100)
-        tm.vehicle_percentage_speed_difference(world.ego,60)
+        #world.ego.set_autopilot(True,8000)
+        #tm.ignore_lights_percentage(world.ego,100)
+        #tm.vehicle_percentage_speed_difference(world.ego,60)
 
         #This is necessary to ensure vehicle "stabilizes" after "falling"
         for i in range (0,30):
             world.world.tick()
 
-        isScoreable = execute_scenario(world, scenario, spectator)
+        isScoreable = execute_scenario(world, scenario, spectator)#it's scoreable as long as the adversary didn't get stuck/into an accident
 
         if isScoreable: score_scenario(world, scenario)        
 
@@ -341,7 +338,7 @@ def game_loop(args):
         print(f"{scenario.score:8.6f}")
 
         if world is not None:
-            tm.set_synchronous_mode(False)
+            #tm.set_synchronous_mode(False)
             settings = world.world.get_settings()
             settings.synchronous_mode = False
             settings.fixed_delta_seconds = None
@@ -357,12 +354,15 @@ def game_loop(args):
 def execute_scenario(world, scenario, spectator):
     isScoreable = True
     dest_index = 1
+
     #set initial destination and target_speed
     destination = scenario.destination_array[dest_index]
     adversary_loca = world.adversary.get_location()
     distance = get_2D_distance(adversary_loca,destination)
     target_speed = 0 + scenario.accel_array[dest_index-1] * (distance/1 * 3.6)  
     adversary_agent = SimpleAgent(world.adversary, destination, target_speed=target_speed)
+    ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':30.0})
+    ego_agent.set_destination(world.map.get_spawn_points()[31].location)
 
     big_array = []
     stuck_counter = 0
@@ -382,6 +382,7 @@ def execute_scenario(world, scenario, spectator):
         distance = get_2D_distance(ego_loca,adversary_loca)
         small_array.append(distance)
         small_array.append(ego_speed)
+        small_array.append(world.obstacle_sensor_ego.history['frame'].count(int(frame)))
         big_array.append(small_array)
 
         if(stuck_counter % 100 == 0):
@@ -392,6 +393,21 @@ def execute_scenario(world, scenario, spectator):
                 scenario.score += stuck_counter * 100
                 isScoreable = False
                 break
+        
+        if(distance < 2.5):#there's an accident, figure out who's fault it is - we only care if it's the ego's fault
+            #print(f"Breaking out of loop due to accident at distance: {distance}")
+            #if the ego detected an obstacle within the last 10 frames, it's likely ego's fault
+            if len(world.obstacle_sensor_ego.history['frame'])>0:
+                last_obstacle_detected = world.obstacle_sensor_ego.history['frame'][-1]
+                if(last_obstacle_detected >= (frame-10) and ego_speed > 1):
+                    #print(f"Accident is the ego's fault: Current frame:\t{frame}, Last obstacle:\t{last_obstacle_detected}")
+                    scenario.score += -100
+                #else:
+                    #print(f"Accident is bike's fault")
+            #else:#if they didn't, it's likely bike's fault - 'suicide bike'
+                #print(f"Accident is bike's fault")
+            isScoreable = False
+            break
         
         if adversary_agent.done():
                
@@ -406,21 +422,44 @@ def execute_scenario(world, scenario, spectator):
                 distance = get_2D_distance(adversary_loca,new_dest)
                 target_speed = current_speed + scenario.accel_array[dest_index-1] * (distance/current_speed * 3.6)  
                 #print(f"target speed ({target_speed:4.2f}) = current speed ({current_speed:4.2f} km/hr) + accel ({adversary.accel_array[dest_index-1]:4.2f} km/(hr*s)) * (distance ({distance:4.2f} meters) / speed ({current_speed:4.2f} km\hr) * 3.6 km*sec/(m*hr))")
-
                 adversary_agent.set_destination(new_dest)
                 adversary_agent.set_target_speed(target_speed)
 
         control = adversary_agent.run_step()
         control.manual_gear_shift = False
         world.adversary.apply_control(control)
+
+        world.ego.apply_control(ego_agent.run_step())
     
     if isScoreable:
         file = "c:\\data\\log_file.csv"
-        header = ['time','distance','ego_speed']
+        header = ['time','distance','ego_speed','obstacle_detected']
         with open(file,'w',newline='') as csvfile:
             csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(header)
-            csvwriter.writerows(big_array)
+            csvwriter.writerow(header)           
+            counter = 0
+            for i in range(len(world.obstacle_sensor_ego.history['frame'])):
+                frame_to_change = world.obstacle_sensor_ego.history['frame'][i]
+                new_dist = world.obstacle_sensor_ego.history['distance'][i]
+                for small_array in big_array:
+                    if(small_array[0]==frame_to_change):
+                        small_array[1] = new_dist
+            for small_array in big_array:
+                if(small_array[-1] == 0 and small_array[1] < 5):
+                    small_array[1] = 5.000000
+                csvwriter.writerow(small_array)
+
+        
+        if len(world.obstacle_sensor_ego.history)>0:
+            #overwrite 'ground truth' distance values with detector distance values
+            file2 = "c:\\data\\obstacle_detect.csv"
+            header2 = ['frame','distance']
+            with open(file2,'w',newline='') as csvfile2:
+                csvwriter2 = csv.DictWriter(csvfile2, fieldnames = header2)
+                csvwriter2.writeheader()
+                for i in range(len(world.obstacle_sensor_ego.history['frame'])):
+                    csvwriter2.writerow({'frame':world.obstacle_sensor_ego.history['frame'][i],'distance':world.obstacle_sensor_ego.history['distance'][i]})
+        
     
     return isScoreable
 
@@ -516,7 +555,15 @@ def main():
     args = argparser.parse_args()
     
     try:
-        game_loop(args)
+        #first read the path from the file
+        scenario = Scenario(args)
+        #ensure path is good - like AbstractScore.java
+        if(scenario.score_path()):#if the path is bad, score_path() returns True
+            #if the path is bad, output the bad score - save time and don't execute the simulation
+            print(f"{scenario.score:8.6f}")
+        else: 
+            #if the path is good, execute it in simulation
+            game_loop(args, scenario)
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')

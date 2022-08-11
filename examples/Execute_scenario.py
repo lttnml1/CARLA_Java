@@ -115,6 +115,7 @@ class Scenario(object):
         #    isBadPath = True
         #    self.score = 999
         #else:
+        self.score -= 1/len(self.point_array)
         if(self.accel_array[0]<0):
             isBadPath = True
             self.score += 999
@@ -367,9 +368,6 @@ def execute_scenario(world, scenario, spectator):
     big_array = []
     stuck_counter = 0
     
-    d = get_2D_distance(world._grid.return_location_from_grid(18,0),world._grid.return_location_from_grid(19,1))
-    print(f"The distance between 360 and 381 is: {d}")
-
     while True:
         world.world.tick()
         stuck_counter += 1
@@ -391,27 +389,45 @@ def execute_scenario(world, scenario, spectator):
         if(stuck_counter % 100 == 0):
             i,j = world._grid.return_grid_from_location(adversary_loca)
             pt = world._grid.return_point_from_coords(i,j)
-            
-            if(pt == int(scenario.point_array[dest_index - 1])):
-                print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
-                scenario.score += stuck_counter * 100
+            if(pt == int(scenario.point_array[dest_index - 1]) or adversary_speed < 0.1):
+                #print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
+                scenario.score += stuck_counter
                 isScoreable = False
                 break
+            '''
             else:
                 print(f"Not stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
+                print(f"distance:{distance}\tspeed:{ego_speed}")
+            '''
         
-        if(distance < 2.5):#there's an accident, figure out who's fault it is - we only care if it's the ego's fault
-            #print(f"Breaking out of loop due to accident at distance: {distance}")
+        debug_accident = False
+        if(distance < 3.0):#there's an accident, figure out who's fault it is - we only care if it's the ego's fault
+            if(debug_accident): print(f"Breaking out of loop due to accident at distance: {distance}\tobstacles: {len(world.obstacle_sensor_ego.history['frame'])}")
             #if the ego detected an obstacle within the last 10 frames, it's likely ego's fault
+            ego_fault = False
             if len(world.obstacle_sensor_ego.history['frame'])>0:
+                
                 last_obstacle_detected = world.obstacle_sensor_ego.history['frame'][-1]
-                if(last_obstacle_detected >= (frame-5) and ego_speed > 1):
-                    #print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
-                    scenario.score += -100
-                #else:
-                    #print(f"Accident is bike's fault")
-            #else:#if they didn't, it's likely bike's fault - 'suicide bike'
-                #print(f"Accident is bike's fault")
+                num_detections = 15 #if ego detected the vehicle for at least this many detections before the accident and didn't stop, it's ego's fault
+                if(debug_accident): print(f"Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
+                if len(world.obstacle_sensor_ego.history['frame']) >= num_detections:
+                    if((last_obstacle_detected - (num_detections-1)) == world.obstacle_sensor_ego.history['frame'][-num_detections]): 
+                        ego_fault = True
+                    if(ego_fault and ego_speed > 1):
+                        if(debug_accident): print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
+                        scenario.score += -20
+                        if(debug_accident): 
+                            for i in range(len(world.obstacle_sensor_ego.history['frame'])):
+                                print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")
+                else:
+                    if(debug_accident):
+                        print(f"Accident is bike's fault - not enough detections prior to accident")
+                        for i in range(len(world.obstacle_sensor_ego.history['frame'])):
+                            print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")
+            else:#if they didn't, it's likely bike's fault - 'suicide bike'
+                if(debug_accident):
+                    print(f"Accident is bike's fault - ZERO detections prior to accident")
+            if(not ego_fault): scenario.score += -1
             isScoreable = False
             break
         
@@ -506,7 +522,7 @@ def score_scenario(world, scenario):
         min_rob = rob[0][1]
         if math.isinf(min_rob):
             #min_rob = sys.float_info.max/1000000
-            min_rob = 9999
+            min_rob = 50
         else:
             for r in rob:
                 if r[1] < min_rob:

@@ -61,6 +61,7 @@ def main():
                     write_string = fileName.split("_")[2]+":8888.888888"+"\n"
                 else:
                     write_string = fileName.split("_")[2]+":"+result+"\n"
+                #print(write_string.strip())
                 f = open(args.scores,"a")
                 f.write(write_string)
                 f.close()

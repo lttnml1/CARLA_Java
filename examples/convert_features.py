@@ -63,7 +63,7 @@ def main():
                         row_of_interest = line_count
                     line_count+=1
                 if(row_of_interest >= 100): index = row_of_interest-100
-                elif((row_of_interest < 100 and row_of_interest > 0) or frame == "100"): index = 0
+                elif((row_of_interest < 100 and row_of_interest >= 0) or frame == "100"): index = 0
                 else: 
                     index = 'illegal'
                     illegal_files.append((fileName, row_of_interest))

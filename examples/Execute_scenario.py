@@ -85,6 +85,8 @@ def read_csv(filename):
 
     return column
 
+
+
 # ==============================================================================
 # -- Scenario ------------------------------------------------------------------
 # ==============================================================================
@@ -92,14 +94,31 @@ def read_csv(filename):
 class Scenario(object):
 
     def __init__(self, args):
+        self._args = args
         self.file = args.file
         self.score = 0
         self.point_array = []
         self.speed_array = []
         self.accel_array = []
         self.destination_array = []
-
+        self.frame = 0
+        self.accident = False
+        self.fault = "nobody"
+        self.ego_start, self.ego_end = Scenario.get_random_start_end_for_ego()
         self.read_file()
+
+    @staticmethod
+    def get_random_start_end_for_ego():
+        start_points_dict = {'start_points':[15,228,61,98]}
+        end_points_dict = {}
+        end_points_dict.update({15:[229,58,9,90,91]})
+        end_points_dict.update({228:[58,9,90,91,31]})
+        end_points_dict.update({61:[229,31,90,91,9]})
+        end_points_dict.update({98:[58,229,31,90,91]})
+            
+        start_point = random.choice(start_points_dict['start_points'])
+        end_point = random.choice(end_points_dict[start_point])
+        return start_point,end_point
 
     def read_file(self):
         with open(self.file, mode='r') as csv_file:
@@ -115,10 +134,10 @@ class Scenario(object):
         #    isBadPath = True
         #    self.score = 999
         #else:
-        self.score -= 1/len(self.point_array)
+        #self.score -= 1/len(self.point_array)
         if(self.accel_array[0]<0):
             isBadPath = True
-            self.score += 999
+            self.score += 100*abs(self.accel_array[0])
         else:
             for i in range(0,len(self.point_array)):
                 speed = self.speed_array[i]
@@ -133,6 +152,7 @@ class Scenario(object):
                     isBadPath = True
                     self.score += 100*abs(speed)
                     break
+        if(self._args.debug_score): print(f"isBadPath:\t{isBadPath}, score:\t{self.score}")
         return isBadPath
 
 # ==============================================================================
@@ -186,6 +206,7 @@ class World(object):
         self.ego = None
         self.obstacle_sensor_ego = None
         self.adversary = None
+        self.feature_vector = []
     
     def destroy(self):
         actors = [
@@ -225,6 +246,56 @@ class World(object):
             #self.world.debug.draw_string(point.location + carla.Location(z=3),str(point.location.x)+',\n'+str(point.location.y),color=carla.Color(255,0,0),life_time=30)
             self.world.debug.draw_string(point.location + carla.Location(z=3),str(counter),color=carla.Color(255,0,0),life_time=30)
             counter += 1
+    
+    def get_features(self):
+        snapshot = self.world.get_snapshot()
+        frame = snapshot.frame
+        actors = []
+        ActorSnapshot_ego = snapshot.find(self.ego.id)
+        actors.append(ActorSnapshot_ego)
+        ActorSnapshot_adv = snapshot.find(self.adversary.id)
+        actors.append(ActorSnapshot_adv)
+
+        frame_feature_vector = []
+        frame_feature_vector.append(frame)
+        for actor in actors:
+            frame_feature_vector.append(actor.get_transform().location.x)
+            frame_feature_vector.append(actor.get_transform().location.y)
+            vel = actor.get_velocity()
+            frame_feature_vector.append(math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2))
+
+        vehicles = []
+        vehicles.append(self.ego)
+        vehicles.append(self.adversary)
+        for vehicle in vehicles:
+            control = vehicle.get_control()
+            frame_feature_vector.append(control.throttle)
+            frame_feature_vector.append(control.steer)
+            frame_feature_vector.append(control.brake)
+        self.feature_vector.append(frame_feature_vector)
+
+    def write_features(self, scenario, args, frame):
+        file_path = "C:\\data\\Features\\"
+        header = ["Frame","ego_loc_x","ego_loc_y","ego_velocity","adv_loc_x","adv_loc_y","adv_velocity","ego_throttle","ego_steer","ego_brake","adv_throttle","adv_steer","adv_brake"]
+        score = scenario.score
+        if(score < 0):
+            num = args.file.split('#')[1]
+            file_name = f"features_path{num}_label1_score{score:8.6f}_frame{frame}"
+            file = file_path + file_name + ".csv"
+            with open(file,"w",newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(self.feature_vector)
+        elif(score >= 0):
+            num = args.file.split('#')[1]
+            file_name = f"features_path{num}_label0_score{score:8.6f}_frame{frame}"
+            file = file_path + file_name + ".csv"
+            with open(file,"w",newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(self.feature_vector)
+        else: 
+            return
 
 # ==============================================================================
 # -- Grid ---------------------------------------------------------------
@@ -258,6 +329,8 @@ class Grid(object):
         return location
     
     def return_grid_from_location(self, location):
+        i = 0
+        j = 0
         for index in range(0,19):
             if(location.x < self.top - self.box_height * (index)): i=index
             if(location.y > self.left + self.box_width* (index)): j=index
@@ -318,7 +391,8 @@ def game_loop(args, scenario):
             if (sp.location.x<-30 and sp.location.x>-135 and sp.location.y<65 and sp.location.y>-45):
                 relevant_spawn_points.append(sp)
         #world.draw_points_and_locations(spawn_points)
-        ego_spawn_point = relevant_spawn_points[18]
+        #ego_spawn_point = spawn_points[15]
+        ego_spawn_point = spawn_points[61]
 
         world.adversary = world.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
         world.ego = world.world.try_spawn_actor(ego_blueprint, ego_spawn_point)
@@ -336,7 +410,10 @@ def game_loop(args, scenario):
         if isScoreable: score_scenario(world, scenario)        
 
     finally:
+        if(scenario.score > 0 and scenario.fault == "ego"):
+            scenario.score = -666666
         print(f"{scenario.score:8.6f}")
+        world.write_features(scenario, args, scenario.frame)
 
         if world is not None:
             #tm.set_synchronous_mode(False)
@@ -363,12 +440,12 @@ def execute_scenario(world, scenario, spectator):
     target_speed = 0 + scenario.accel_array[dest_index-1] * (distance/1 * 3.6)  
     adversary_agent = SimpleAgent(world.adversary, destination, target_speed=target_speed)
     ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':10.0})
-    ego_agent.set_destination(world.map.get_spawn_points()[31].location)
+    ego_agent.set_destination(world.map.get_spawn_points()[229].location)
 
     big_array = []
     stuck_counter = 0
-    
     while True:
+        world.get_features()
         world.world.tick()
         stuck_counter += 1
 
@@ -386,13 +463,17 @@ def execute_scenario(world, scenario, spectator):
         small_array.append(world.obstacle_sensor_ego.history['frame'].count(int(frame)))
         big_array.append(small_array)
 
+
         if(stuck_counter % 200 == 0):
             i,j = world._grid.return_grid_from_location(adversary_loca)
             pt = world._grid.return_point_from_coords(i,j)
             if(pt == int(scenario.point_array[dest_index - 1]) or adversary_speed < 0.1):
-                #print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}\nspeed:{adversary_speed}")
-                scenario.score += stuck_counter
-                isScoreable = False
+                #scenario.score += stuck_counter
+                #scenario.score += 1
+                #isScoreable = False
+                if(world._args.debug_score): 
+                    print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}\nspeed:{adversary_speed}")
+                    print(f"Score:{scenario.score}")
                 break
             '''
             else:
@@ -401,34 +482,43 @@ def execute_scenario(world, scenario, spectator):
             '''
         
         debug_accident = False
+        if(world._args.debug_score): 
+            debug_accident = True
         if(distance < 3.0):#there's an accident, figure out who's fault it is - we only care if it's the ego's fault
+            scenario.accident = True
+            ego_detected = False
             if(debug_accident): print(f"Breaking out of loop due to accident at distance: {distance}\tobstacles: {len(world.obstacle_sensor_ego.history['frame'])}")
-            #if the ego detected an obstacle within the last 10 frames, it's likely ego's fault
-            ego_fault = False
+            #if the ego detected an obstacle in the current frame, it's likely ego's fault
             if len(world.obstacle_sensor_ego.history['frame'])>0:
-                
                 last_obstacle_detected = world.obstacle_sensor_ego.history['frame'][-1]
                 num_detections = 15 #if ego detected the vehicle for at least this many detections before the accident and didn't stop, it's ego's fault
                 if(debug_accident): print(f"Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
-                if len(world.obstacle_sensor_ego.history['frame']) >= num_detections:
+                if(frame == last_obstacle_detected and len(world.obstacle_sensor_ego.history['frame']) >= num_detections):
                     if((last_obstacle_detected - (num_detections-1)) == world.obstacle_sensor_ego.history['frame'][-num_detections]): 
-                        ego_fault = True
-                    if(ego_fault and ego_speed > 1):
-                        if(debug_accident): print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
-                        scenario.score += -5
-                        if(debug_accident): 
-                            for i in range(len(world.obstacle_sensor_ego.history['frame'])):
-                                print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")
+                        ego_detected = True
+                if(ego_detected and ego_speed > 1):
+                    #scenario.score += -5
+                    scenario.fault = "ego"
+                    if(debug_accident):
+                        print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
+                        print(f"Score:{scenario.score}") 
+                        for i in range(len(world.obstacle_sensor_ego.history['frame'])):
+                            print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")
                 else:
+                    #if ego didn't detect the bike for the last 'num_detections' frames, it's likely the bike's fault
+                    scenario.fault = "adversary"
                     if(debug_accident):
                         print(f"Accident is bike's fault - not enough detections prior to accident")
                         for i in range(len(world.obstacle_sensor_ego.history['frame'])):
                             print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")
-            else:#if they didn't, it's likely bike's fault - 'suicide bike'
+            else:#if ego didn't detect the bike at all, it's likely bike's fault - 'suicide bike'
+                scenario.fault = "adversary"
                 if(debug_accident):
                     print(f"Accident is bike's fault - ZERO detections prior to accident")
-            if(not ego_fault): scenario.score += -1
-            isScoreable = False
+            if(not ego_detected): 
+                #scenario.score += -2
+                if(debug_accident): print(f"Score:{scenario.score}")
+            #isScoreable = False
             break
         
         if adversary_agent.done():
@@ -446,6 +536,10 @@ def execute_scenario(world, scenario, spectator):
                 #print(f"target speed ({target_speed:4.2f}) = current speed ({current_speed:4.2f} km/hr) + accel ({adversary.accel_array[dest_index-1]:4.2f} km/(hr*s)) * (distance ({distance:4.2f} meters) / speed ({current_speed:4.2f} km\hr) * 3.6 km*sec/(m*hr))")
                 adversary_agent.set_destination(new_dest)
                 adversary_agent.set_target_speed(target_speed)
+        
+        if ego_agent.done():
+            if(world._args.debug_score): print(f"Ego is done, exiting")
+            break
 
         control = adversary_agent.run_step()
         control.manual_gear_shift = False
@@ -522,13 +616,18 @@ def score_scenario(world, scenario):
         min_rob = rob[0][1]
         if math.isinf(min_rob):
             #min_rob = sys.float_info.max/1000000
-            min_rob = 50
+            min_rob = 2
+            if(world._args.debug_score):
+                print(f"Ego never came within 5 meters of adversary")
         else:
             for r in rob:
                 if r[1] < min_rob:
                     min_rob = rob[1]
-        #print(f"Minimum robustness: {str(min_rob)}")
+        
         scenario.score += min_rob
+        if(world._args.debug_score):
+            print(f"Minimum robustness: {str(min_rob)}")
+            print(f"Done scoring STL, score is: {scenario.score}")
 
     
     with open(read_file, mode='r') as inFile, open(write_file, "w",newline='') as outFile:
@@ -538,7 +637,16 @@ def score_scenario(world, scenario):
         headers.append('robustness')
         csv_writer.writerow(headers)
         line_count = 0
+        
+
+        changed = False
         for row in csv_reader:
+            if(line_count == 0):
+                scenario.frame = row[0]
+            elif(line_count > 0 and not changed):
+                if(rob[line_count][1] != rob[line_count-1][1]): #if the robustness has changed, minimum will always be first
+                    scenario.frame = int(row[0])-1
+                    changed = True
             new_row = row
             new_row.append(rob[line_count][1])
             csv_writer.writerow(new_row)
@@ -573,6 +681,10 @@ def main():
         help='file name to read from',
         default=None,
         type=str)
+    argparser.add_argument(
+        '--debug_score',
+        action = 'store_true',
+        help='Debug score (default: False)')
 
     args = argparser.parse_args()
     
@@ -582,6 +694,7 @@ def main():
         #ensure path is good - like AbstractScore.java
         if(scenario.score_path()):#if the path is bad, score_path() returns True
             #if the path is bad, output the bad score - save time and don't execute the simulation
+            if(args.debug_score): print(f"Bad path, not executing simulation")
             print(f"{scenario.score:8.6f}")
         else: 
             #if the path is good, execute it in simulation

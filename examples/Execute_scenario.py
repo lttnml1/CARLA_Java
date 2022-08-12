@@ -386,11 +386,11 @@ def execute_scenario(world, scenario, spectator):
         small_array.append(world.obstacle_sensor_ego.history['frame'].count(int(frame)))
         big_array.append(small_array)
 
-        if(stuck_counter % 100 == 0):
+        if(stuck_counter % 200 == 0):
             i,j = world._grid.return_grid_from_location(adversary_loca)
             pt = world._grid.return_point_from_coords(i,j)
             if(pt == int(scenario.point_array[dest_index - 1]) or adversary_speed < 0.1):
-                #print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}")
+                #print(f"Exiting because stuck, {pt}\t{scenario.point_array[dest_index - 1]}\nspeed:{adversary_speed}")
                 scenario.score += stuck_counter
                 isScoreable = False
                 break
@@ -415,7 +415,7 @@ def execute_scenario(world, scenario, spectator):
                         ego_fault = True
                     if(ego_fault and ego_speed > 1):
                         if(debug_accident): print(f"Accident is the ego's fault: Current frame:\t{frame} and speed:\t{ego_speed}, Last obstacle:\t{last_obstacle_detected}")
-                        scenario.score += -20
+                        scenario.score += -5
                         if(debug_accident): 
                             for i in range(len(world.obstacle_sensor_ego.history['frame'])):
                                 print(f"frame:{world.obstacle_sensor_ego.history['frame'][i]}\tdistance:{world.obstacle_sensor_ego.history['distance'][i]}")

@@ -61,37 +61,41 @@ def main():
         print(f)
     
     list = []
+    first_file = True
+    headers = []
     for f in data_files:
-        df = pd.read_csv(f, index_col=None, header=None)
+        df = pd.read_csv(f, index_col=None, header=0)
+        if(first_file): 
+            headers = df.columns
+            first_file = False
         list.append(df)
     df = pd.concat(list, axis=0, ignore_index=True)
 
     print(f"After processing the data, here are the stats:")
     print(f"\tTotal Samples:\t{df.shape[0]}")
-    print(f"\tZeros:\t{df[143].value_counts()[0]}")
-    print(f"\tOnes:\t{df[143].value_counts()[1]}")
+    print(f"\tZeros:\t{df['label'].value_counts()[0]}")
+    print(f"\tOnes:\t{df['label'].value_counts()[1]}")
 
     if(number_of_samples > df.shape[0]):
         print(f"**Not possible: You requested {number_of_samples} total samples and there are only {df.shape[0]}")
         return 0
-    if(num_zeros > df[143].value_counts()[0]):
-        print(f"**Not possible: You requested {num_zeros} ZEROS and there are only {df[143].value_counts()[0]}")
+    if(num_zeros > df['label'].value_counts()[0]):
+        print(f"**Not possible: You requested {num_zeros} ZEROS and there are only {df['label'].value_counts()[0]}")
         return 0
-    if(num_ones > df[143].value_counts()[1]):
-        print(f"**Not possible: You requested {num_ones} ONES and there are only {df[143].value_counts()[1]}")
+    if(num_ones > df['label'].value_counts()[1]):
+        print(f"**Not possible: You requested {num_ones} ONES and there are only {df['label'].value_counts()[1]}")
         return 0
 
-    zero_samples = df[df[143]==0].sample(n=num_zeros,replace=False)
-    one_samples = df[df[143]==1].sample(n=num_ones,replace=False)
+    zero_samples = df[df['label']==0].sample(n=num_zeros,replace=False)
+    one_samples = df[df['label']==1].sample(n=num_ones,replace=False)
     total_samples = pd.concat([zero_samples,one_samples],ignore_index=True)
 
     trainingSet, testSet = train_test_split(total_samples, test_size=(1-args.train_test_split))
-    print(f"Train size:\t{trainingSet.shape[0]}, Zeros: {trainingSet[143].value_counts()[0]}, Ones: {trainingSet[143].value_counts()[1]}")
-    print(f"Test size:\t{testSet.shape[0]}, Zeros: {testSet[143].value_counts()[0]}, Ones: {testSet[143].value_counts()[1]}")
-
-    trainingSet.to_csv(os.path.join(args.path,"train.csv"),index=False, header=None)
-    testSet.to_csv(os.path.join(args.path,"test.csv"),index=False, header=None)
-
+    print(f"Train size:\t{trainingSet.shape[0]}, Zeros: {trainingSet['label'].value_counts()[0]}, Ones: {trainingSet['label'].value_counts()[1]}")
+    print(f"Test size:\t{testSet.shape[0]}, Zeros: {testSet['label'].value_counts()[0]}, Ones: {testSet['label'].value_counts()[1]}")
+    print(df.columns.values.tolist)
+    trainingSet.to_csv(os.path.join(args.path,"train.csv"),index=False, header=headers)
+    testSet.to_csv(os.path.join(args.path,"test.csv"),index=False, header=headers)
 
 if __name__ == '__main__':
     main()

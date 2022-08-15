@@ -392,7 +392,7 @@ def game_loop(args, scenario):
                 relevant_spawn_points.append(sp)
         #world.draw_points_and_locations(spawn_points)
         #ego_spawn_point = spawn_points[15]
-        ego_spawn_point = spawn_points[61]
+        ego_spawn_point = spawn_points[scenario.ego_start]
 
         world.adversary = world.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
         world.ego = world.world.try_spawn_actor(ego_blueprint, ego_spawn_point)
@@ -440,7 +440,7 @@ def execute_scenario(world, scenario, spectator):
     target_speed = 0 + scenario.accel_array[dest_index-1] * (distance/1 * 3.6)  
     adversary_agent = SimpleAgent(world.adversary, destination, target_speed=target_speed)
     ego_agent = BasicAgent(world.ego, target_speed = 9,  opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':10.0})
-    ego_agent.set_destination(world.map.get_spawn_points()[229].location)
+    ego_agent.set_destination(world.map.get_spawn_points()[scenario.ego_end].location)
 
     big_array = []
     stuck_counter = 0

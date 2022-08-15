@@ -24,9 +24,20 @@ def record_five_minutes(index, rows, label):
         time_index += 1
     line.append(int(label))
     return line
-    
+
+def write_headers():
+    headers = ["time","ego_loc_x","ego_loc_y","ego_velocity","adv_loc_x","adv_loc_y","adv_velocity","ego_throttle","ego_steer","ego_brake","adv_throttle","adv_steer","adv_brake"]
+    header_line = []
+    num_time_steps = 11
+    num_features = len(headers)
+    for i in range(num_time_steps):
+        for h in headers:
+            header_line.append(h+f"_{i}")
+    header_line.append("label")
+    return header_line
+
 def write_to_file(line, file):
-    with open(file,'a',newline='') as csvfile:
+    with open(file,mode='a+',newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(line)
 
@@ -41,6 +52,10 @@ def main():
         type=str)
     args = argparser.parse_args()
 
+    header_line = write_headers()
+    write_to_file(header_line, os.path.join(os.path.dirname(args.path),"features_list.csv"))
+    
+    
     illegal_files = []
     for dirName, subdirList, fileList in os.walk(args.path):
         for fileName in fileList:
@@ -94,7 +109,7 @@ def main():
         if all_rows_the_same[i] and i%(num_features+1) != 0:
             print(i)
             
-        
+      
 
 
 

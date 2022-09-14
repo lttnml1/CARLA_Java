@@ -273,6 +273,7 @@ class BehaviorAgent(BasicAgent):
 
         # 2.2: Car following behaviors
         vehicle_state, vehicle, distance = self.collision_and_car_avoid_manager(ego_vehicle_wp)
+        #print(vehicle_state, vehicle)
 
         if vehicle_state:
             # Distance is computed from the center of the two cars,

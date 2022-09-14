@@ -153,7 +153,7 @@ def execute_scenario(args):
         for i in range(0,30):
             world.tick()
 
-        ego_agent = BehaviorAgent(ego, behavior='cautious')
+        ego_agent = BehaviorAgent(ego, behavior='normal')
         #draw_location(world, ego_destination)
         ego_agent.set_destination(ego_destination)
         
@@ -172,10 +172,11 @@ def execute_scenario(args):
                 ts = math.floor(world.get_snapshot().timestamp.elapsed_seconds)
                 accel = imu_sensor.accelerometer
                 gyro = imu_sensor.gyroscope
-                data = [accel[0],accel[1],accel[2],gyro[0],gyro[1],gyro[2],'cautious',ts]
+                data = [accel[0],accel[1],accel[2],gyro[0],gyro[1],gyro[2],'normal',ts]
                 big_data.append(data)
             
     finally:
+        print("Writing file\n")
         write_data(big_data)
         if world is not None:
             settings = world.get_settings()
@@ -197,7 +198,7 @@ def execute_scenario(args):
 def write_data(data):
     headers = ['AccX','AccY','AccZ','GyroX','GyroY','GyroZ','Class','Timestamp']
     df = pd.DataFrame(data,columns=headers)
-    df.to_csv('C:\\Users\\m.litton_local\\data_analysis\\carla\\cautious.csv',index=False)
+    df.to_csv('C:\\Users\\m.litton_local\\data_analysis\\carla\\normal.csv',index=False)
 
 def main():
     program_start_time = time.time()
@@ -211,9 +212,9 @@ def main():
     argparser.add_argument(
         '-p', '--port',
         metavar='P',
-        default=2000,
+        default=2004,
         type=int,
-        help='TCP port to listen to (default: 2000)')
+        help='TCP port to listen to (default: 2004)')
     argparser.add_argument(
         '-n', '--number-of-vehicles',
         metavar='N',

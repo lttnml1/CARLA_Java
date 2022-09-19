@@ -53,20 +53,22 @@ def main():
     args = argparser.parse_args()
 
     try:
+        
         distributions = []
         adversary_target_speed = NormalDistrib(2,1)
         distributions.append(adversary_target_speed)
         
-        ce = CrossEntropy(50,0.1,5,distributions)
-        #ce.purpose = 'search'
-        #ce.execute_ce(args)
+        ce = CrossEntropy(10,0.1,5,distributions)
+        ce.execute_ce(args)
 
         #this is manual - in the future, this will automatically update
-        ce.distributions[0].mu = 2.6401866440899724
-        ce.distributions[0].sigma = 0.08131476220951864
-
-        ce.purpose = 'label'
-        ce.demonstrate_and_label(args, 1)
+        #ce.distributions[0].mu = 2.6401866440899724
+        #ce.distributions[0].sigma = 0.08131476220951864
+        
+        ans = input("CE search is done, continue with demonstrate and label? y/n: ")
+        if(ans == 'y'):
+            ce.demonstrate_and_label(args, 1)
+        
     
     finally:
         print(f"TOTAL RUN TIME: {time.time()-program_start_time}")

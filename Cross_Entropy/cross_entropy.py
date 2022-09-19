@@ -59,7 +59,7 @@ class CrossEntropy(object):
             scores = np.empty(y.shape)
             for i in range(np.shape(y)[0]):
                 cs = CarlaScenario()
-                ret = cs.execute_scenario(args, y[i,:])
+                ret = cs.execute_scenario(args, y[i,:],"search")
                 scores[i,0] = ret[0]
                 print(f"Completed\t{i+1}/{np.shape(y)[0]}")
                 if ret[1]<0:
@@ -75,17 +75,20 @@ class CrossEntropy(object):
             round += 1
     
     def demonstrate_and_label(self, args, num_scenarios):
+        args.no_render = False
         #draw samples from the final distribution
         y = self.draw_random_samples(num_scenarios)
 
         #play the scenarios for the user
         for i in range(np.shape(y)[0]):
             cs = CarlaScenario()
-            ret = cs.execute_scenario(args, y[i,:])
+            ret = cs.execute_scenario(args, y[i,:],"label")
             #ask the user if they want to save it as a '1'?
             print(f"Completed\t{i+1}/{np.shape(y)[0]}, Score was: {ret[0]}")
             ans = input("Do you want to save this scenario? y/n: ")
-            if(ans == 'y'): print("Saving")
+            if(ans == 'y'): 
+                print("Saving")
+                cs.write_features()
             else: print("Discarding")
 
         #if so, extract features and save to file

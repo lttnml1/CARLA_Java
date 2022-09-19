@@ -5,8 +5,10 @@ import sys
 import glob
 import os
 import math
+import numpy as np
+import pandas as pd
 from shapely.geometry import Polygon
-from shapely import affinity
+from shapely.affinity import rotate
 
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.simple_agent import SimpleAgent
@@ -30,10 +32,9 @@ class CarlaScenario(object):
         self.ego = None
         self.adv = None
         self.score = None
-        self.purpose = None
         self.feature_vector = []
 
-    def execute_scenario(self, args, parameters):
+    def execute_scenario(self, args, parameters, purpose):
         bounding_boxes = None
         flag = 0
 
@@ -49,6 +50,7 @@ class CarlaScenario(object):
             settings.synchronous_mode = True
             settings.fixed_delta_seconds = 0.05
             if(args.no_render): settings.no_rendering_mode = True
+            else: settings.no_rendering_mode = False
             world.apply_settings(settings)
 
             spectator = world.get_spectator()
@@ -86,21 +88,27 @@ class CarlaScenario(object):
             counter = 0
             while True:
                 world.tick()
-                world_snapshot = world.get_snapshot()
-                if(self.purpose == 'label'):
-                    self.get_features(world_snapshot)
-                frame = world_snapshot.timestamp.frame
-                dist = CarlaScenario.get_2D_distance(self.ego.get_transform().location,self.adv.get_transform().location)
-                if(dist<self.score): 
-                    self.score=dist
-                    bounding_boxes = []
-                    for actor_snapshot in world.get_actors().filter('*vehicle*'):
-                        #print(actor_snapshot.bounding_box)
-                        actual_actor = world.get_actor(actor_snapshot.id)
+                actor_snapshots = world.get_actors().filter('*vehicle*')
+                bounding_boxes = []
+                for actor_snapshot in actor_snapshots:
+                    actual_actor = world.get_actor(actor_snapshot.id)
+                    bb = [actual_actor.bounding_box.extent.x,actual_actor.bounding_box.extent.y,actual_actor.bounding_box.extent.z]
+                    bounding_boxes.append((carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(y=bb[0],x=bb[1],z=bb[2])),actor_snapshot.get_transform(),actual_actor.attributes.get('role_name')))
+
+                bb_ret = CarlaScenario.bb_test_code(bounding_boxes)
+
+                if(bb_ret[1] < self.score):
+                    self.score = bb_ret[1]
+                    bounding_boxes_draw = []
+                    for actor_snapshot in actor_snapshots:
                         bb = [actual_actor.bounding_box.extent.x,actual_actor.bounding_box.extent.y,actual_actor.bounding_box.extent.z]
-                        #world.debug.draw_box(carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(bb[0],bb[1],bb[2])),actor_snapshot.get_transform().rotation,0.1,carla.Color(0,255,0),30)
-                        bounding_boxes.append((carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(bb[0],bb[1],bb[2])),actor_snapshot.get_transform()))
-                    
+                        bounding_boxes_draw.append((carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(x=bb[0],y=bb[1],z=bb[2])),actor_snapshot.get_transform(),actual_actor.attributes.get('role_name')))
+
+                world_snapshot = world.get_snapshot()
+                if(purpose == "label"):
+                    self.get_features(world_snapshot,bb_ret)
+                frame = world_snapshot.timestamp.frame
+
                 ego_done = ego_agent.done()
                 adv_done = adv_agent.done()
                 if(ego_done or adv_done): break
@@ -115,10 +123,9 @@ class CarlaScenario(object):
             
         finally:
             if(not args.no_render):
-                if(bounding_boxes is not None):
-                    for box in bounding_boxes:
+                if(bounding_boxes_draw is not None):
+                    for box in bounding_boxes_draw:
                         world.debug.draw_box(box[0],box[1].rotation,0.1,carla.Color(0,255,0),1)
-                    CarlaScenario.bb_test_code(bounding_boxes)
             if world is not None:
                 settings = world.get_settings()
                 settings.synchronous_mode = False
@@ -130,31 +137,79 @@ class CarlaScenario(object):
                     self.adv.destroy()
             return self.score, flag
     
-    def get_features(self, world_snapshot):
-        frame = world_snapshot.frame
+    def get_features(self, world_snapshot, bb_ret):
+        frame_feature_vec = []
+        frame_feature_vec.append(world_snapshot.frame)
+        frame_feature_vec.append(bb_ret[0])
+        frame_feature_vec.append(bb_ret[1])
+        frame_feature_vec.append(bb_ret[2])
+
+        actors = []
+        ego_snapshot = world_snapshot.find(self.ego.id)
+        adv_snapshot = world_snapshot.find(self.adv.id)
+        actors.append(ego_snapshot)
+        actors.append(adv_snapshot)
+
+        for a in actors:
+            vel = a.get_velocity() #m/s
+            accel = a.get_acceleration() #m/s^2
+            ang_vel = a.get_angular_velocity() #deg/s
+            frame_feature_vec.append(vel.x)
+            frame_feature_vec.append(vel.y)
+            frame_feature_vec.append(vel.z)
+            frame_feature_vec.append(accel.x)
+            frame_feature_vec.append(accel.y)
+            frame_feature_vec.append(accel.z)
+            frame_feature_vec.append(ang_vel.x)
+            frame_feature_vec.append(ang_vel.y)
+            frame_feature_vec.append(ang_vel.z)
+        self.feature_vector.append(frame_feature_vec)
+        
     
     def write_features(self):
         print("Writing features")
-        headers = ['frame']
+        headers = ['frame', 'intersect','hausdorff_distance','angle', 
+                   'ego_vel_x','ego_vel_y','ego_vel_z','ego_accel_x','ego_accel_y','ego_accel_z','ego_ang_vel_x','ego_ang_vel_y','ego_ang_vel_z',
+                   'adv_vel_x','adv_vel_y','adv_vel_z','adv_accel_x','adv_accel_y','adv_accel_z','adv_ang_vel_x','adv_ang_vel_y','adv_ang_vel_z']
+        df = pd.DataFrame(data = self.feature_vector, columns=headers)
+        df.to_csv("data.csv")
 
     @abstractmethod
     def bb_test_code(bounding_boxes):
-        polygons = []
+        polygons = {}
+        transforms = {}
         for bb in bounding_boxes:
             vertices = bb[0].get_local_vertices()
             coords = []
             for vert in vertices:
                 if(vert.z > 0):
                     coords.append((vert.x,vert.y))
-            last_elem = coords[-1]
-            coords[-2] = coords[-1]
-            coords[-1] = last_elem
+            coords_copy = coords[:]
+            coords[-2] = coords_copy[-1]
+            coords[-1] = coords_copy[-2]
             p = Polygon(coords)
-            polygons.append(p)
-        for polygon in polygons:
-            rot_p = affinity.rotate(p, 90, origin='centroid')
-            print(p.is_valid,p)
-
+            carla_yaw = bb[1].rotation.yaw
+            if(carla_yaw > 0):
+                p = rotate(p,carla_yaw - 90)
+            elif(carla_yaw < 0):
+                p = rotate(p,abs(carla_yaw) + 90)
+            polygons[bb[2]] = p
+            transforms[bb[2]] = bb[1]
+            #print(bb[2],list(p.exterior.coords))
+        
+        ego_vec = (transforms['ego'].get_forward_vector().x,transforms['ego'].get_forward_vector().y)
+        diff_vec = transforms['adversary'].location - transforms['ego'].location 
+        angle = CarlaScenario.angle_between(ego_vec,(diff_vec.x,diff_vec.y))
+        dist = polygons['ego'].distance(polygons['adversary'])
+        accident = polygons['ego'].intersects(polygons['adversary'])
+        return (accident, dist, angle)
+        
+    @abstractmethod
+    #pass the ego vector first
+    def angle_between(v1,v2):
+        v1_u = v1/np.linalg.norm(v1)
+        v2_u = v2/np.linalg.norm(v2)
+        return math.degrees(math.atan2(v2_u[0],v2_u[1]) - math.atan2(v1_u[0],v1_u[1]))
                 
     @abstractmethod
     def draw_location(world, location, draw_time = 10):
@@ -163,5 +218,3 @@ class CarlaScenario(object):
     @abstractmethod
     def get_2D_distance(loc1, loc2):
         return math.sqrt((loc1.x - loc2.x)**2+(loc1.y-loc2.y)**2)
-
-    

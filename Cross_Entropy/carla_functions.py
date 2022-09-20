@@ -7,6 +7,8 @@ import os
 import math
 import numpy as np
 import pandas as pd
+import time
+import csv
 from shapely.geometry import Polygon
 from shapely.affinity import rotate
 
@@ -33,12 +35,19 @@ class CarlaScenario(object):
         self.adv = None
         self.score = None
         self.feature_vector = []
+        self.ego_start = 228
+        self.ego_dest = 31
+        self.ego_speed = 10
+        self.adv_start = 61
+        self.adv_dest = 31
+        self.adv_speed = None
 
     def execute_scenario(self, args, parameters, purpose):
         bounding_boxes = None
         flag = 0
 
         adversary_target_speed = parameters[0]
+        self.adv_speed = adversary_target_speed
         try:
             client = carla.Client(args.host,args.port)
             client.set_timeout(4.0)
@@ -64,8 +73,8 @@ class CarlaScenario(object):
 
             map = world.get_map()
             spawn_points = map.get_spawn_points()
-            ego_spawn_point = spawn_points[228]
-            adversary_spawn_point = spawn_points[61]
+            ego_spawn_point = spawn_points[self.ego_start]
+            adversary_spawn_point = spawn_points[self.adv_start]
             #adversary_spawn_point = carla.Transform(carla.Location(x=-67.668266, y=5.793464, z=0.275),carla.Rotation(roll=0,pitch=0,yaw=-160))
             #adversary_spawn_point = carla.Transform(carla.Location(x=-82.668266, y=8.793464, z=0.275),carla.Rotation(roll=0,pitch=0,yaw=-160))
             #draw_location(world, ego_spawn_point.location)
@@ -75,12 +84,12 @@ class CarlaScenario(object):
             for i in range(0,30):
                 world.tick()
             
-            ego_agent = BasicAgent(self.ego, target_speed = 10,opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':20.0})
-            ego_destination = spawn_points[31].location
+            ego_agent = BasicAgent(self.ego, target_speed = self.ego_speed,opt_dict={'ignore_traffic_lights':'True','base_vehicle_threshold':20.0})
+            ego_destination = spawn_points[self.ego_dest].location
             #draw_location(world, ego_destination)
             ego_agent.set_destination(ego_destination)
             #adv_destination = carla.Location(x=-94.079308, y=24.415840, z=0.031020)
-            adv_destination = spawn_points[31].location
+            adv_destination = spawn_points[self.adv_dest].location
             adv_agent = SimpleAgent(self.adv, adv_destination, target_speed = adversary_target_speed * 3.6)
 
             self.score = CarlaScenario.get_2D_distance(adversary_spawn_point.location,ego_spawn_point.location)
@@ -172,7 +181,17 @@ class CarlaScenario(object):
                    'ego_vel_x','ego_vel_y','ego_vel_z','ego_accel_x','ego_accel_y','ego_accel_z','ego_ang_vel_x','ego_ang_vel_y','ego_ang_vel_z',
                    'adv_vel_x','adv_vel_y','adv_vel_z','adv_accel_x','adv_accel_y','adv_accel_z','adv_ang_vel_x','adv_ang_vel_y','adv_ang_vel_z']
         df = pd.DataFrame(data = self.feature_vector, columns=headers)
-        df.to_csv("data.csv")
+        data_path = "c:\\data\\label\\"
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        file_name = (time_str + "_" + str(round(self.score)) +"_1.csv")
+        full_path = os.path.join(data_path,file_name)
+        df.to_csv(full_path)
+
+        path_file_name = file_name.split('.csv')[0] + "_path.csv"
+        with open(os.path.join(data_path,path_file_name),'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['ego_start','ego_dest','ego_speed','adv_start','adv_dest','adv_vel'])
+            writer.writerow([self.ego_start, self.ego_dest,self.ego_speed,self.adv_start,self.adv_dest,self.adv_speed])
 
     @abstractmethod
     def bb_test_code(bounding_boxes):

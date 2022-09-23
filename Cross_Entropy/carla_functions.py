@@ -14,6 +14,7 @@ from shapely.affinity import rotate
 
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.simple_agent import SimpleAgent
+from examples.Execute_scenario import read_csv
 
 # ==============================================================================
 # -- Find CARLA module ---------------------------------------------------------
@@ -35,19 +36,23 @@ class CarlaScenario(object):
         self.adv = None
         self.score = None
         self.feature_vector = []
-        self.ego_start = 228
-        self.ego_dest = 31
-        self.ego_speed = 10
+        self.ego_start = 98
+        self.ego_dest = 30
+        self.ego_speed = 6
         self.adv_start = 61
-        self.adv_dest = 31
+        self.adv_dest = 30
         self.adv_speed = None
 
-    def execute_scenario(self, args, parameters, purpose):
+    def execute_scenario(self, args, parameters, purpose, file=None):
         bounding_boxes = None
         flag = 0
 
+        if(purpose == "replay" and file is not None):
+            self.assign_parameters(file)
+
         adversary_target_speed = parameters[0]
-        self.adv_speed = adversary_target_speed
+        if self.adv_speed is None:
+            self.adv_speed = adversary_target_speed
         try:
             client = carla.Client(args.host,args.port)
             client.set_timeout(4.0)
@@ -73,6 +78,7 @@ class CarlaScenario(object):
 
             map = world.get_map()
             spawn_points = map.get_spawn_points()
+            #self.draw_points_and_locations(spawn_points)
             ego_spawn_point = spawn_points[self.ego_start]
             adversary_spawn_point = spawn_points[self.adv_start]
             #adversary_spawn_point = carla.Transform(carla.Location(x=-67.668266, y=5.793464, z=0.275),carla.Rotation(roll=0,pitch=0,yaw=-160))
@@ -90,7 +96,7 @@ class CarlaScenario(object):
             ego_agent.set_destination(ego_destination)
             #adv_destination = carla.Location(x=-94.079308, y=24.415840, z=0.031020)
             adv_destination = spawn_points[self.adv_dest].location
-            adv_agent = SimpleAgent(self.adv, adv_destination, target_speed = adversary_target_speed * 3.6)
+            adv_agent = SimpleAgent(self.adv, adv_destination, target_speed = self.adv_speed * 3.6)
 
             self.score = CarlaScenario.get_2D_distance(adversary_spawn_point.location,ego_spawn_point.location)
 
@@ -109,10 +115,13 @@ class CarlaScenario(object):
                 if(bb_ret[1] < self.score):
                     self.score = bb_ret[1]
                     bounding_boxes_draw = []
+                    bounding_boxes_closest = []
                     for actor_snapshot in actor_snapshots:
+                        actual_actor = world.get_actor(actor_snapshot.id)
                         bb = [actual_actor.bounding_box.extent.x,actual_actor.bounding_box.extent.y,actual_actor.bounding_box.extent.z]
                         bounding_boxes_draw.append((carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(x=bb[0],y=bb[1],z=bb[2])),actor_snapshot.get_transform(),actual_actor.attributes.get('role_name')))
-
+                        bounding_boxes_closest.append((carla.BoundingBox(actor_snapshot.get_transform().location,carla.Vector3D(y=bb[0],x=bb[1],z=bb[2])),actor_snapshot.get_transform(),actual_actor.attributes.get('role_name')))
+                
                 world_snapshot = world.get_snapshot()
                 if(purpose == "label"):
                     self.get_features(world_snapshot,bb_ret)
@@ -128,13 +137,13 @@ class CarlaScenario(object):
 
         except KeyboardInterrupt:
                 flag = -1
-                print("Execute_scenario cancelled by user!")         
-            
+                print("Execute_scenario cancelled by user!")          
         finally:
             if(not args.no_render):
                 if(bounding_boxes_draw is not None):
                     for box in bounding_boxes_draw:
                         world.debug.draw_box(box[0],box[1].rotation,0.1,carla.Color(0,255,0),1)
+            #CarlaScenario.bb_final_code(bounding_boxes_closest)
             if world is not None:
                 settings = world.get_settings()
                 settings.synchronous_mode = False
@@ -145,6 +154,23 @@ class CarlaScenario(object):
                 if self.adv is not None:
                     self.adv.destroy()
             return self.score, flag
+    
+    def assign_parameters(self, file):
+        df = pd.read_csv(file)
+        self.ego_start = df['ego_start'][0]
+        self.ego_dest = df['ego_dest'][0]
+        self.ego_speed = df['ego_speed'][0]
+        self.adv_start = df['adv_start'][0]
+        self.adv_dest = df['adv_dest'][0]
+        self.adv_speed = df['adv_vel'][0]
+
+    def draw_points_and_locations(self, points):
+        counter = 0
+        for point in points:
+            self.world.debug.draw_point(point.location,size=0.2,color=carla.Color(255,255,255),life_time=30)
+            #self.world.debug.draw_string(point.location + carla.Location(z=3),str(point.location.x)+',\n'+str(point.location.y),color=carla.Color(255,0,0),life_time=30)
+            self.world.debug.draw_string(point.location + carla.Location(z=3),str(counter),color=carla.Color(255,0,0),life_time=30)
+            counter += 1
     
     def get_features(self, world_snapshot, bb_ret):
         frame_feature_vec = []
@@ -222,13 +248,43 @@ class CarlaScenario(object):
         dist = polygons['ego'].distance(polygons['adversary'])
         accident = polygons['ego'].intersects(polygons['adversary'])
         return (accident, dist, angle)
+
+    @abstractmethod
+    def bb_final_code(bounding_boxes):
+        polygons = {}
+        transforms = {}
+        for bb in bounding_boxes:
+            vertices = bb[0].get_local_vertices()
+            coords = []
+            for vert in vertices:
+                if(vert.z > 0):
+                    coords.append((vert.x,vert.y))
+            coords_copy = coords[:]
+            coords[-2] = coords_copy[-1]
+            coords[-1] = coords_copy[-2]
+            p = Polygon(coords)
+            carla_yaw = bb[1].rotation.yaw
+            if(carla_yaw > 0):
+                p = rotate(p,carla_yaw - 90)
+            elif(carla_yaw < 0):
+                p = rotate(p,abs(carla_yaw) + 90)
+            polygons[bb[2]] = p
+            transforms[bb[2]] = bb[1]
+            print(bb[2],list(p.exterior.coords))
+        
+        ego_vec = (transforms['ego'].get_forward_vector().x,transforms['ego'].get_forward_vector().y)
+        diff_vec = transforms['adversary'].location - transforms['ego'].location 
+        angle = CarlaScenario.angle_between(ego_vec,(diff_vec.x,diff_vec.y))
+        dist = polygons['ego'].distance(polygons['adversary'])
+        accident = polygons['ego'].intersects(polygons['adversary'])
+        print(ego_vec, diff_vec, angle, dist, accident)
         
     @abstractmethod
     #pass the ego vector first
     def angle_between(v1,v2):
         v1_u = v1/np.linalg.norm(v1)
         v2_u = v2/np.linalg.norm(v2)
-        return math.degrees(math.atan2(v2_u[0],v2_u[1]) - math.atan2(v1_u[0],v1_u[1]))
+        return math.degrees(math.atan2(v1_u[0],v1_u[1]) - math.atan2(v2_u[0],v2_u[1]))
                 
     @abstractmethod
     def draw_location(world, location, draw_time = 10):

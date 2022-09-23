@@ -91,7 +91,9 @@ class CrossEntropy(object):
                 cs.write_features()
             else: print("Discarding")
 
-        #if so, extract features and save to file
+    def replay(self, args, file):
+        cs = CarlaScenario()
+        cs.execute_scenario(args, [1.0], "replay", file)
 
         
 

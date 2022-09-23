@@ -26,6 +26,8 @@ Outline of program
 import time
 import numpy as np
 import argparse
+import os
+import random
 
 
 from cross_entropy import CrossEntropy
@@ -58,20 +60,30 @@ def main():
         adversary_target_speed = NormalDistrib(2,1)
         distributions.append(adversary_target_speed)
         
-        ce = CrossEntropy(1000,0.1,2,distributions)
-        ce.execute_ce(args)
+        ce = CrossEntropy(50,0.1,10,distributions)
+        #ce.execute_ce(args)
+        #print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
 
         #this is manual - in the future, this will automatically update
-        #ce.distributions[0].mu = 3.077
-        #ce.distributions[0].sigma = 0.502
+        ce.distributions[0].mu = 3.1241983232626083
+        ce.distributions[0].sigma = 1.05980201074133346
         
-        print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
+        
         ans = input("CE search is done, continue with demonstrate and label? y/n: ")
         if(ans == 'y'):
-            ce.demonstrate_and_label(args, 1)
-        #ce.replay(args, "c:\\data\\label\\20220921-142425_0_1_path.csv")
-        
-    
+            ce.demonstrate_and_label(args, 5)
+        """
+        replay_path = "c:\\data\\label\\"
+        num_files = 5
+        for dirName, subdirList, fileList in os.walk(replay_path):
+            for i in range(num_files):
+                file = random.choice([f for f in fileList if '_path' in f])
+                print(file)
+                ret = ce.replay(args, os.path.join(dirName,file))
+                if ret < 0:
+                    print("Replay cancelled by user!")
+                    return
+        """
     finally:
         print(f"TOTAL RUN TIME: {time.time()-program_start_time}")
 

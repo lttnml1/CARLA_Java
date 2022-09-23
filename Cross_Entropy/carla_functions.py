@@ -36,16 +36,28 @@ class CarlaScenario(object):
         self.adv = None
         self.score = None
         self.feature_vector = []
-        self.ego_start = 98
-        self.ego_dest = 30
-        self.ego_speed = 6
+        self.ego_start = 228
+        self.ego_dest = 31
+        self.ego_speed = 10
         self.adv_start = 61
-        self.adv_dest = 30
+        self.adv_dest = 31
         self.adv_speed = None
+
+    def pre_score(self, parameters):
+        bad_path = False
+        adversary_target_speed = parameters[0]
+        if(adversary_target_speed < 1):
+            bad_path = True
+            return (0, bad_path)
+        return(self.score,bad_path)
 
     def execute_scenario(self, args, parameters, purpose, file=None):
         bounding_boxes = None
         flag = 0
+
+        pre_score_ret = self.pre_score(parameters)
+        if(pre_score_ret[1]):
+            return (pre_score_ret[0],flag)
 
         if(purpose == "replay" and file is not None):
             self.assign_parameters(file)
@@ -101,8 +113,16 @@ class CarlaScenario(object):
             self.score = CarlaScenario.get_2D_distance(adversary_spawn_point.location,ego_spawn_point.location)
 
             counter = 0
+            stuck_counter = 0
             while True:
                 world.tick()
+                stuck_counter += 1
+
+                if(stuck_counter % 200 == 0):
+                    if(CarlaScenario.get_vehicle_speed(self.adv) < 0.1):
+                        print(f"Exiting because stuck: {self.adv_speed}")
+                
+
                 actor_snapshots = world.get_actors().filter('*vehicle*')
                 bounding_boxes = []
                 for actor_snapshot in actor_snapshots:
@@ -134,6 +154,8 @@ class CarlaScenario(object):
                     self.ego.apply_control(ego_agent.run_step())
                     self.adv.apply_control(adv_agent.run_step())
                 counter +=1
+
+                
 
         except KeyboardInterrupt:
                 flag = -1
@@ -209,7 +231,7 @@ class CarlaScenario(object):
         df = pd.DataFrame(data = self.feature_vector, columns=headers)
         data_path = "c:\\data\\label\\"
         time_str = time.strftime("%Y%m%d-%H%M%S")
-        file_name = (time_str + "_" + str(round(self.score)) +"_1.csv")
+        file_name = (time_str + "_" + str(round(self.score)) +"_0.csv")
         full_path = os.path.join(data_path,file_name)
         df.to_csv(full_path)
 
@@ -293,3 +315,10 @@ class CarlaScenario(object):
     @abstractmethod
     def get_2D_distance(loc1, loc2):
         return math.sqrt((loc1.x - loc2.x)**2+(loc1.y-loc2.y)**2)
+
+    @abstractmethod
+    def get_vehicle_speed(actor):
+        #Returns vehicle speed in km/hr
+        vel = actor.get_velocity()
+        speed = 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)#m/s * 1km/1000m * 3600s/1hr = km/hr (i.e., m/s * 3.6 = km/hr, 3.6 = (km*s)/(m*hr))
+        return speed

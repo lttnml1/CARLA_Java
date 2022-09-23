@@ -23,21 +23,30 @@ class CrossEntropy(object):
     
     def calculate_elite(self, y, scores):
         distribution_elites = []
-        #print("Original scores/values are:")
-        #for i in range(len(y)):
-            #print(f"{i}:\t{y[i,:]}\t{scores[i,0]}")
+        print("Original scores/values are:")
+        for i in range(len(y)):
+            print(f"{i}:\t{y[i,:]}\t{scores[i,0]}")
         sorted_scores = np.sort(scores[:,0])
         sorted_score_indices = np.argsort(scores[:,0])
-        #print(f"Sorted scores are: {sorted_scores}, indices are: {sorted_score_indices}")
-        gamma_index = round(self.rho * self.N)
-        #print(f"The gamma element should be at {gamma_index}, which means it's {sorted_scores[gamma_index]}")
-        gamma_element = sorted_scores[gamma_index]
-        #print(f"Elite set has indicies: {sorted_score_indices[0:gamma_index+1]}")
-        elite_set = sorted_score_indices[0:gamma_index+1]
+        print(f"Sorted scores are: {sorted_scores}, indices are: {sorted_score_indices}")
+        
+        #gamma_index = round(self.rho * self.N) #use this for "bad"
+        gamma_index = round((1-self.rho)*self.N)
+
+        print(f"The gamma element should be at {gamma_index-1}, which means it's {sorted_scores[gamma_index-1]}")
+        gamma_element = sorted_scores[gamma_index-1]
+        
+        #elite_set = sorted_score_indices[0:gamma_index+1]
+        print(sorted_score_indices[-1])
+        elite_set = sorted_score_indices[gamma_index-1:]
+
+        print(f"Elite set has indicies: {elite_set}")
+
         for i in range(self.n):
-            #print(f"**For distribution: {i} **")
-            #print(f"This means the elite set is made up of: {y[sorted_score_indices[0:gamma_index+1],i]}")
-            distribution_elite = y[sorted_score_indices[0:gamma_index+1],i]
+            print(f"**For distribution: {i} **")
+            print(f"This means the elite set is made up of: {y[elite_set,i]}")
+            #distribution_elite = y[sorted_score_indices[0:gamma_index+1],i]
+            distribution_elite = y[elite_set,i]
             distribution_elites.append(distribution_elite)
         return gamma_element, distribution_elites
     
@@ -50,9 +59,10 @@ class CrossEntropy(object):
             self.distributions[i].print_params()
     
     def execute_ce(self, args):
-        gamma = 100
+        gamma = 0
         round = 0
-        while(gamma > self.gamma):
+        #while(gamma > self.gamma): #use this for searching for "bad"
+        while (gamma < self.gamma):
             print(f"*****Beginning Round {round}*****")
             round_start_time = time.time()
             y = self.draw_random_samples()
@@ -90,10 +100,14 @@ class CrossEntropy(object):
                 print("Saving")
                 cs.write_features()
             else: print("Discarding")
+            if ret[1]<0:
+                    print("D&L cancelled by user!")
+                    return
 
     def replay(self, args, file):
         cs = CarlaScenario()
-        cs.execute_scenario(args, [1.0], "replay", file)
+        ret = cs.execute_scenario(args, [1.0], "replay", file)
+        return ret[1]
 
         
 

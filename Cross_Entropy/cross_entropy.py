@@ -21,7 +21,7 @@ class CrossEntropy(object):
             y[:,i] = self.distributions[i].draw_samples(num_samples)
         return y
     
-    def calculate_elite(self, y, scores):
+    def calculate_elite_good(self, y, scores):
         distribution_elites = []
         print("Original scores/values are:")
         for i in range(len(y)):
@@ -37,7 +37,6 @@ class CrossEntropy(object):
         gamma_element = sorted_scores[gamma_index-1]
         
         #elite_set = sorted_score_indices[0:gamma_index+1]
-        print(sorted_score_indices[-1])
         elite_set = sorted_score_indices[gamma_index-1:]
 
         print(f"Elite set has indicies: {elite_set}")
@@ -58,7 +57,7 @@ class CrossEntropy(object):
         for i in range(self.n):
             self.distributions[i].print_params()
     
-    def execute_ce(self, args):
+    def execute_ce_good(self, args):
         gamma = 0
         round = 0
         #while(gamma > self.gamma): #use this for searching for "bad"
@@ -76,13 +75,63 @@ class CrossEntropy(object):
                     print("CE Loop cancelled by user!")
                     return
             
-            gamma, elites = self.calculate_elite(y, scores)
+            gamma, elites = self.calculate_elite_good(y, scores)
             self.update_parameters(elites)
             
             self.print_distribution_parameters()
             print(f"Gamma:{gamma}")
             print(f"\n*****Round: {round} took {time.time()-round_start_time}*****")
             round += 1
+    
+    def execute_ce_bad(self, args):
+        gamma = 100
+        round = 0
+        while(gamma > self.gamma): #use this for searching for "bad"
+            print(f"*****Beginning Round {round}*****")
+            round_start_time = time.time()
+            y = self.draw_random_samples()
+            scores = np.empty(y.shape)
+            for i in range(np.shape(y)[0]):
+                cs = CarlaScenario()
+                ret = cs.execute_scenario(args, y[i,:],"search")
+                scores[i,0] = ret[0]
+                print(f"Completed\t{i+1}/{np.shape(y)[0]}")
+                if ret[1]<0:
+                    print("CE Loop cancelled by user!")
+                    return
+            
+            gamma, elites = self.calculate_elite_bad(y, scores)
+            self.update_parameters(elites)
+            
+            self.print_distribution_parameters()
+            print(f"Gamma:{gamma}")
+            print(f"\n*****Round: {round} took {time.time()-round_start_time}*****")
+            round += 1
+    
+    def calculate_elite_bad(self, y, scores):
+        distribution_elites = []
+        print("Original scores/values are:")
+        for i in range(len(y)):
+            print(f"{i}:\t{y[i,:]}\t{scores[i,0]}")
+        sorted_scores = np.sort(scores[:,0])
+        sorted_score_indices = np.argsort(scores[:,0])
+        print(f"Sorted scores are: {sorted_scores}, indices are: {sorted_score_indices}")
+        
+        gamma_index = round(self.rho * self.N) #use this for "bad"
+
+        print(f"The gamma element should be at {gamma_index+1}, which means it's {sorted_scores[gamma_index+1]}")
+        gamma_element = sorted_scores[gamma_index+1]
+        
+        elite_set = sorted_score_indices[:gamma_index+2]
+
+        print(f"Elite set has indicies: {elite_set}")
+
+        for i in range(self.n):
+            print(f"**For distribution: {i} **")
+            print(f"This means the elite set is made up of: {y[elite_set,i]}")
+            distribution_elite = y[elite_set,i]
+            distribution_elites.append(distribution_elite)
+        return gamma_element, distribution_elites
     
     def demonstrate_and_label(self, args, num_scenarios):
         args.no_render = False

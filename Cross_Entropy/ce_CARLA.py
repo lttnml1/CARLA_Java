@@ -60,30 +60,61 @@ def main():
         adversary_target_speed = NormalDistrib(2,1)
         distributions.append(adversary_target_speed)
         
-        ce = CrossEntropy(50,0.1,10,distributions)
-        #ce.execute_ce(args)
+        ce = CrossEntropy(10,.1,5,distributions)
+        #ce.execute_ce_good(args)
+        #ce.execute_ce_bad(args)
         #print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
 
         #this is manual - in the future, this will automatically update
-        ce.distributions[0].mu = 3.1241983232626083
-        ce.distributions[0].sigma = 1.05980201074133346
+        #ce.distributions[0].mu = 1.87
+        #ce.distributions[0].sigma = 0.5
         
-        
+        """
         ans = input("CE search is done, continue with demonstrate and label? y/n: ")
         if(ans == 'y'):
-            ce.demonstrate_and_label(args, 5)
+            ce.demonstrate_and_label(args, 20)
+        
+        """
         """
         replay_path = "c:\\data\\label\\"
-        num_files = 5
+        #num_files = 20
+        
         for dirName, subdirList, fileList in os.walk(replay_path):
-            for i in range(num_files):
-                file = random.choice([f for f in fileList if '_path' in f])
-                print(file)
-                ret = ce.replay(args, os.path.join(dirName,file))
+            #for i in range(num_files):
+            good_files = [f for f in fileList if '0_path' in f]
+            bad_files = [f for f in fileList if '1_path' in f]
+            for i in range(len(good_files)):
+                ans = input(f"{i}: continue?")
+                #file = random.choice([f for f in fileList if '0_path' in f])
+                print(good_files[i])
+                ret = ce.replay(args, os.path.join(dirName,good_files[i]))
                 if ret < 0:
                     print("Replay cancelled by user!")
                     return
+        
+        
         """
+        good_files = ['20220923-124856_5_0_path.csv','20220923-125221_9_0_path.csv','20220923-125246_11_0_path.csv','20220923-132603_8_0_path.csv','20220923-132726_15_0_path.csv','20220928-110918_14_0_path.csv','20220928-110954_9_0_path.csv','20220928-111146_4_0_path.csv','20220923-131355_0_0_path.csv']
+        bad_files = ['20220921-142425_0_1_path.csv','20220921-142756_1_1_path.csv','20220921-151430_0_1_path.csv','20220921-151518_0_1_path.csv','20220923-114847_0_1_path.csv','20220923-115057_0_1_path.csv','20220928-105905_0_1_path.csv','20220928-105914_3_1_path.csv']
+        e = ['20220928-110807_10_0_path.csv']
+        counter = 0
+        for file in good_files:
+            print(counter, file)
+            ret = ce.replay(args,os.path.join("c:\\data\\label\\",file))
+            counter +=1
+            if ret < 0:
+                    print("Replay cancelled by user!")
+                    return
+        time.sleep(10)
+        counter = 0            
+        for file in bad_files:
+            print(counter, file)
+            ret = ce.replay(args,os.path.join("c:\\data\\label\\",file))
+            counter +=1
+            if ret < 0:
+                    print("Replay cancelled by user!")
+                    return
+        
     finally:
         print(f"TOTAL RUN TIME: {time.time()-program_start_time}")
 

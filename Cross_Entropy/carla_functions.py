@@ -36,11 +36,11 @@ class CarlaScenario(object):
         self.adv = None
         self.score = None
         self.feature_vector = []
-        self.ego_start = 228
-        self.ego_dest = 31
+        self.ego_start = 15
+        self.ego_dest = 59
         self.ego_speed = 10
-        self.adv_start = 61
-        self.adv_dest = 31
+        self.adv_start = 228
+        self.adv_dest = 9
         self.adv_speed = None
 
     def pre_score(self, parameters):
@@ -55,9 +55,11 @@ class CarlaScenario(object):
         bounding_boxes = None
         flag = 0
 
+        #should only be in effect for GOOD search
         pre_score_ret = self.pre_score(parameters)
         if(pre_score_ret[1]):
             return (pre_score_ret[0],flag)
+        
 
         if(purpose == "replay" and file is not None):
             self.assign_parameters(file)
@@ -121,6 +123,7 @@ class CarlaScenario(object):
                 if(stuck_counter % 200 == 0):
                     if(CarlaScenario.get_vehicle_speed(self.adv) < 0.1):
                         print(f"Exiting because stuck: {self.adv_speed}")
+                        break
                 
 
                 actor_snapshots = world.get_actors().filter('*vehicle*')

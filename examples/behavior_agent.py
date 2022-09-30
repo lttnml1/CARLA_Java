@@ -19,6 +19,7 @@ from numpy import random
 import logging
 import weakref
 import pandas as pd
+from collections import deque
 
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.behavior_agent import BehaviorAgent
@@ -37,42 +38,6 @@ except IndexError:
 
 import carla
 
-# ==============================================================================
-# -- IMUSensor -----------------------------------------------------------------
-class IMUSensor(object):
-    def __init__(self, parent_actor):
-        self.sensor = None
-        self._parent = parent_actor
-        self.accelerometer = (0.0, 0.0, 0.0)
-        self.gyroscope = (0.0, 0.0, 0.0)
-        self.compass = 0.0
-        world = self._parent.get_world()
-        bp = world.get_blueprint_library().find('sensor.other.imu')
-        self.sensor = world.spawn_actor(
-            bp, carla.Transform(), attach_to=self._parent)
-        # We need to pass the lambda a weak reference to self to avoid circular
-        # reference.
-        weak_self = weakref.ref(self)
-        self.sensor.listen(
-            lambda sensor_data: IMUSensor._IMU_callback(weak_self, sensor_data))
-
-    @staticmethod
-    def _IMU_callback(weak_self, sensor_data):
-        self = weak_self()
-        if not self:
-            return
-        limits = (-99.9, 99.9)
-        self.accelerometer = (
-            max(limits[0], min(limits[1], sensor_data.accelerometer.x)),
-            max(limits[0], min(limits[1], sensor_data.accelerometer.y)),
-            max(limits[0], min(limits[1], sensor_data.accelerometer.z/9.8)))
-        self.gyroscope = (
-            max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.x))),
-            max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.y))),
-            max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.z))))
-        self.compass = math.degrees(sensor_data.compass)
-# ==============================================================================
-
 def draw_location(world, location, draw_time = 10):
         world.debug.draw_point(location,size=0.2,color=carla.Color(0,255,0),life_time=draw_time)
 
@@ -82,7 +47,6 @@ def get_2D_distance(loc1, loc2):
 def execute_scenario(args):
     world = None
     ego = None
-    imu_sensor = None
     vehicles_list = []
 
     client = carla.Client(args.host,args.port)
@@ -93,16 +57,14 @@ def execute_scenario(args):
         settings = world.get_settings()
         settings.synchronous_mode = True
         settings.fixed_delta_seconds = 0.05
-        if(args.no_render): settings.no_rendering_mode = True
         world.apply_settings(settings)
 
         tm = client.get_trafficmanager(8000)
         tm.set_synchronous_mode(True)
         tm.set_random_device_seed(0)
-
-        if(not args.no_render):            
-            spectator = world.get_spectator()
-            spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
+           
+        spectator = world.get_spectator()
+        spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
 
         blueprints = world.get_blueprint_library()
         ego_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
@@ -113,9 +75,8 @@ def execute_scenario(args):
         ego_spawn_point = random.choice(spawn_points)
         ego = world.try_spawn_actor(ego_blueprint,ego_spawn_point)
         ego_destination = random.choice(spawn_points).location
-        imu_sensor = IMUSensor(ego)
         
-        random.shuffle(spawn_points)
+        #random.shuffle(spawn_points)
 
         SpawnActor = carla.command.SpawnActor
         SetAutopilot = carla.command.SetAutopilot
@@ -147,37 +108,48 @@ def execute_scenario(args):
             else:
                 vehicles_list.append(response.actor_id)
         
-        print('spawned %d vehicles, press Ctrl+C to exit.' % (len(vehicles_list)))
+        print('Spawned %d vehicles, press Ctrl+C to exit.\n' % (len(vehicles_list)))
       
 
         for i in range(0,30):
             world.tick()
 
-        ego_agent = BehaviorAgent(ego, behavior='normal')
+        ego_agent = BehaviorAgent(ego, behavior='normal',opt_dict={'offset':0.0})
         #draw_location(world, ego_destination)
         ego_agent.set_destination(ego_destination)
-        
 
-        big_data = []
+
+
+        spectator.set_transform(ego.get_transform())
+        waypoints_queue = ego_agent.get_waypoints() #this is a SHALLOW copy - good which means it can be modified
+        
+        offset = 1.0
+        for i in range(len(waypoints_queue)):
+            waypoint = waypoints_queue[i][0]
+            road_option = waypoints_queue[i][1]
+
+            w_tran = waypoint.transform
+            r_vec = w_tran.get_right_vector()
+            w_loc = w_tran.location + carla.Location(x=offset*r_vec.x, y=offset*r_vec.y)
+            #waypoints_queue[i] = (carla.Transform(carla.Location(w_loc),waypoints_queue[i][0].transform.rotation),road_option)
+            draw_location(world,w_loc,240)
+            #draw_location(world, waypoint[0].transform.location,240)
+
+            
+        
         counter = 0
         while True:
             world.tick()
-            if(not args.no_render):  
-                spectator.set_transform(carla.Transform(ego.get_transform().location+carla.Location(z=5),ego.get_transform().rotation))
+            
+            #spectator.set_transform(carla.Transform(ego.get_transform().location+carla.Location(z=3),ego.get_transform().rotation))
             if ego_agent.done():
                 ego_agent.set_destination(random.choice(spawn_points).location)
+
             ego.apply_control(ego_agent.run_step())
             counter+=1
-            if(not counter%10):
-                ts = math.floor(world.get_snapshot().timestamp.elapsed_seconds)
-                accel = imu_sensor.accelerometer
-                gyro = imu_sensor.gyroscope
-                data = [accel[0],accel[1],accel[2],gyro[0],gyro[1],gyro[2],'normal',ts]
-                big_data.append(data)
             
     finally:
-        print("Writing file\n")
-        write_data(big_data)
+        print("Cleaning up\n")
         if world is not None:
             settings = world.get_settings()
             settings.synchronous_mode = False
@@ -185,20 +157,13 @@ def execute_scenario(args):
             world.apply_settings(settings)
 
             if ego is not None:
-                if imu_sensor is not None:
-                    imu_sensor.sensor.destroy()
                 ego.destroy()
             
-            print('\ndestroying %d vehicles' % len(vehicles_list))
+            print('\nDestroying %d vehicles' % len(vehicles_list))
             client.apply_batch([carla.command.DestroyActor(x) for x in vehicles_list])
 
             tm.set_synchronous_mode(False)
             time.sleep(0.5)
-
-def write_data(data):
-    headers = ['AccX','AccY','AccZ','GyroX','GyroY','GyroZ','Class','Timestamp']
-    df = pd.DataFrame(data,columns=headers)
-    df.to_csv('C:\\Users\\m.litton_local\\data_analysis\\carla\\normal.csv',index=False)
 
 def main():
     program_start_time = time.time()

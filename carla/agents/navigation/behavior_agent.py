@@ -30,7 +30,7 @@ class BehaviorAgent(BasicAgent):
     are encoded in the agent, from cautious to a more aggressive ones.
     """
 
-    def __init__(self, vehicle, behavior='normal'):
+    def __init__(self, vehicle, behavior='normal', opt_dict={}):
         """
         Constructor method.
 
@@ -39,7 +39,8 @@ class BehaviorAgent(BasicAgent):
             :param behavior: type of agent to apply
         """
 
-        super(BehaviorAgent, self).__init__(vehicle)
+        #super(BehaviorAgent, self).__init__(vehicle)
+        super().__init__(vehicle,opt_dict=opt_dict)
         self._look_ahead_steps = 0
 
         # Vehicle information
@@ -61,6 +62,10 @@ class BehaviorAgent(BasicAgent):
 
         elif behavior == 'aggressive':
             self._behavior = Aggressive()
+    
+    def get_waypoints(self):
+        return super().get_local_planner()._waypoints_queue
+        
 
     def _update_information(self):
         """

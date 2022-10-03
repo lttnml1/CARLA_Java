@@ -36,11 +36,11 @@ class CarlaScenario(object):
         self.adv = None
         self.score = None
         self.feature_vector = []
-        self.ego_start = 15
-        self.ego_dest = 59
+        self.ego_start = 60
+        self.ego_dest = 8
         self.ego_speed = 10
-        self.adv_start = 228
-        self.adv_dest = 9
+        self.adv_start = 13
+        self.adv_dest = 58
         self.adv_speed = None
 
     def pre_score(self, parameters):
@@ -53,13 +53,16 @@ class CarlaScenario(object):
 
     def execute_scenario(self, args, parameters, purpose, file=None):
         bounding_boxes = None
+        bounding_boxes_draw = None
+        bounding_boxes_closest = None
         flag = 0
 
         #should only be in effect for GOOD search
+        """
         pre_score_ret = self.pre_score(parameters)
         if(pre_score_ret[1]):
             return (pre_score_ret[0],flag)
-        
+        """
 
         if(purpose == "replay" and file is not None):
             self.assign_parameters(file)
@@ -99,6 +102,8 @@ class CarlaScenario(object):
             #adversary_spawn_point = carla.Transform(carla.Location(x=-82.668266, y=8.793464, z=0.275),carla.Rotation(roll=0,pitch=0,yaw=-160))
             #draw_location(world, ego_spawn_point.location)
             self.ego = self.world.try_spawn_actor(ego_blueprint,ego_spawn_point)
+
+            adversary_sp_mod = carla.Transform(carla.Location(adversary_spawn_point.location-carla.Location(x=10)),adversary_spawn_point.rotation)
             self.adv = self.world.try_spawn_actor(adversary_blueprint,adversary_spawn_point)
 
             for i in range(0,30):
@@ -168,7 +173,8 @@ class CarlaScenario(object):
                 if(bounding_boxes_draw is not None):
                     for box in bounding_boxes_draw:
                         world.debug.draw_box(box[0],box[1].rotation,0.1,carla.Color(0,255,0),1)
-            #CarlaScenario.bb_final_code(bounding_boxes_closest)
+            if(bounding_boxes_closest is not None):
+                CarlaScenario.bb_final_code(bounding_boxes_closest)
             if world is not None:
                 settings = world.get_settings()
                 settings.synchronous_mode = False
@@ -288,14 +294,16 @@ class CarlaScenario(object):
             coords[-2] = coords_copy[-1]
             coords[-1] = coords_copy[-2]
             p = Polygon(coords)
+            #print(bb[2],list(p.exterior.coords))
             carla_yaw = bb[1].rotation.yaw
             if(carla_yaw > 0):
                 p = rotate(p,carla_yaw - 90)
             elif(carla_yaw < 0):
-                p = rotate(p,abs(carla_yaw) + 90)
+                #p = rotate(p,abs(carla_yaw) + 90)
+                p = rotate(p,(180+carla_yaw) + 90)
             polygons[bb[2]] = p
             transforms[bb[2]] = bb[1]
-            print(bb[2],list(p.exterior.coords))
+            print(bb[2],list(p.exterior.coords), carla_yaw)
         
         ego_vec = (transforms['ego'].get_forward_vector().x,transforms['ego'].get_forward_vector().y)
         diff_vec = transforms['adversary'].location - transforms['ego'].location 
@@ -309,7 +317,10 @@ class CarlaScenario(object):
     def angle_between(v1,v2):
         v1_u = v1/np.linalg.norm(v1)
         v2_u = v2/np.linalg.norm(v2)
-        return math.degrees(math.atan2(v1_u[0],v1_u[1]) - math.atan2(v2_u[0],v2_u[1]))
+        angle =  math.degrees(math.atan2(v1_u[0],v1_u[1]) - math.atan2(v2_u[0],v2_u[1]))
+        if(angle < 0 and abs(angle) > 180): angle +=360
+        if(angle > 180): angle = angle-360
+        return angle
                 
     @abstractmethod
     def draw_location(world, location, draw_time = 10):

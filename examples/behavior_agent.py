@@ -21,9 +21,8 @@ import weakref
 import pandas as pd
 from collections import deque
 
-from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.behavior_agent import BehaviorAgent
-from agents.navigation.simple_agent import SimpleAgent
+from agents.navigation.bad_lane_changer import BadLaneChanger
 
 # ==============================================================================
 # -- Find CARLA module ---------------------------------------------------------
@@ -66,7 +65,7 @@ def execute_scenario(args):
         spectator = world.get_spectator()
         spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))
 
-        blueprints = world.get_blueprint_library()
+        blueprints = world.get_blueprint_library().filter("*vehicle*")
         ego_blueprint = blueprints.filter("vehicle.dodge.charger_police")[0]
         ego_blueprint.set_attribute('role_name','ego')
 
@@ -114,7 +113,7 @@ def execute_scenario(args):
         for i in range(0,30):
             world.tick()
 
-        ego_agent = BehaviorAgent(ego, behavior='normal',opt_dict={'offset':0.0})
+        ego_agent = BehaviorAgent(ego, behavior='normal',opt_dict={'ignore_traffic_lights':True})
         #draw_location(world, ego_destination)
         ego_agent.set_destination(ego_destination)
 
@@ -123,27 +122,17 @@ def execute_scenario(args):
         spectator.set_transform(ego.get_transform())
         waypoints_queue = ego_agent.get_waypoints() #this is a SHALLOW copy - good which means it can be modified
         
-        offset = 1.0
-        for i in range(len(waypoints_queue)):
-            waypoint = waypoints_queue[i][0]
-            road_option = waypoints_queue[i][1]
+        for wp in waypoints_queue:
+            draw_location(world,wp[0].transform.location,240)
 
-            w_tran = waypoint.transform
-            r_vec = w_tran.get_right_vector()
-            w_loc = w_tran.location + carla.Location(x=offset*r_vec.x, y=offset*r_vec.y)
-            #waypoints_queue[i] = (carla.Transform(carla.Location(w_loc),waypoints_queue[i][0].transform.rotation),road_option)
-            draw_location(world,w_loc,240)
-            #draw_location(world, waypoint[0].transform.location,240)
-
-            
-        
         counter = 0
         while True:
             world.tick()
             
-            #spectator.set_transform(carla.Transform(ego.get_transform().location+carla.Location(z=3),ego.get_transform().rotation))
+            spectator.set_transform(carla.Transform(ego.get_transform().location+carla.Location(z=3),ego.get_transform().rotation))
             if ego_agent.done():
                 ego_agent.set_destination(random.choice(spawn_points).location)
+                print("Finished! New dest")
 
             ego.apply_control(ego_agent.run_step())
             counter+=1

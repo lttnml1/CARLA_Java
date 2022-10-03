@@ -316,7 +316,7 @@ class BehaviorAgent(BasicAgent):
         Overwrites the throttle a brake values of a control to perform an emergency stop.
         The steering is kept the same to avoid going out of the lane when stopping during turns
 
-            :param speed (carl.VehicleControl): control to be modified
+            :param speed (carla.VehicleControl): control to be modified
         """
         control = carla.VehicleControl()
         control.throttle = 0.0

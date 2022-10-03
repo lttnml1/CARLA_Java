@@ -63,18 +63,18 @@ def main():
         ce = CrossEntropy(10,.1,5,distributions)
         #ce.execute_ce_good(args)
         #ce.execute_ce_bad(args)
-        #print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
+        print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
 
         #this is manual - in the future, this will automatically update
-        #ce.distributions[0].mu = 1.87
-        #ce.distributions[0].sigma = 0.5
+        ce.distributions[0].mu = 3.2841948426060585
+        ce.distributions[0].sigma = 1
         
-        """
+        
         ans = input("CE search is done, continue with demonstrate and label? y/n: ")
         if(ans == 'y'):
-            ce.demonstrate_and_label(args, 20)
+            ce.demonstrate_and_label(args, 5)
         
-        """
+        
         """
         replay_path = "c:\\data\\label\\"
         #num_files = 20
@@ -94,9 +94,11 @@ def main():
         
         
         """
-        good_files = ['20220923-124856_5_0_path.csv','20220923-125221_9_0_path.csv','20220923-125246_11_0_path.csv','20220923-132603_8_0_path.csv','20220923-132726_15_0_path.csv','20220928-110918_14_0_path.csv','20220928-110954_9_0_path.csv','20220928-111146_4_0_path.csv','20220923-131355_0_0_path.csv']
-        bad_files = ['20220921-142425_0_1_path.csv','20220921-142756_1_1_path.csv','20220921-151430_0_1_path.csv','20220921-151518_0_1_path.csv','20220923-114847_0_1_path.csv','20220923-115057_0_1_path.csv','20220928-105905_0_1_path.csv','20220928-105914_3_1_path.csv']
-        e = ['20220928-110807_10_0_path.csv']
+        #good_files = ['20220923-124856_5_0_path.csv','20220923-125221_9_0_path.csv','20220923-125246_11_0_path.csv','20220923-132603_8_0_path.csv','20220923-132726_15_0_path.csv','20220928-110918_14_0_path.csv','20220928-110954_9_0_path.csv','20220928-111146_4_0_path.csv','20220923-131355_0_0_path.csv']
+        #bad_files = ['20220921-142425_0_1_path.csv','20220921-142756_1_1_path.csv','20220921-151430_0_1_path.csv','20220921-151518_0_1_path.csv','20220923-114847_0_1_path.csv','20220923-115057_0_1_path.csv','20220928-105905_0_1_path.csv','20220928-105914_3_1_path.csv']
+        #e = '20220928-110115_2_1_path.csv'
+        #ce.replay(args,os.path.join("c:\\data\\label\\",e))
+        """
         counter = 0
         for file in good_files:
             print(counter, file)
@@ -114,6 +116,7 @@ def main():
             if ret < 0:
                     print("Replay cancelled by user!")
                     return
+        """
         
     finally:
         print(f"TOTAL RUN TIME: {time.time()-program_start_time}")

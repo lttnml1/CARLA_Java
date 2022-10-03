@@ -10,6 +10,7 @@ import math
 import numpy as np
 import carla
 from agents.tools.misc import get_speed
+import random
 
 
 class VehiclePIDController():
@@ -212,6 +213,9 @@ class PIDLateralController():
             :param vehicle_transform: current transform of the vehicle
             :return: steering control in the range [-1, 1]
         """
+
+        #self._offset = random.uniform(-1.5,1.5)
+
         # Get the ego's location and forward vector
         ego_loc = vehicle_transform.location
         v_vec = vehicle_transform.get_forward_vector()

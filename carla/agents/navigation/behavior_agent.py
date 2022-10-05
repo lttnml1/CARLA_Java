@@ -169,6 +169,20 @@ class BehaviorAgent(BasicAgent):
                     and self._behavior.tailgate_counter == 0:
                 self._tailgating(waypoint, vehicle_list)
         
+        
+        #if it's foggy, 50% chance
+        if(self._world.get_weather().fog_density > 50.0 and vehicle_state):
+            accurate_detect = random.choice([True,False])
+            if not accurate_detect:
+                print(f"It's foggy!! {self._world.get_weather().fog_density}")
+                print(f"Ground truth: {(vehicle_state,vehicle,distance)}")
+                print(f"Returning {(False, None, -1)}")
+                return False, None, -1
+            else:
+                print(f"It's foggy!! {self._world.get_weather().fog_density}")
+                print(f"Ground truth: {(vehicle_state,vehicle,distance)}")
+                print(f"Returning {(vehicle_state,vehicle,distance)}")
+                return vehicle_state, vehicle, distance
         return vehicle_state, vehicle, distance
 
     def pedestrian_avoid_manager(self, waypoint):

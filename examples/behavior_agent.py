@@ -61,6 +61,12 @@ def execute_scenario(args):
         tm = client.get_trafficmanager(8000)
         tm.set_synchronous_mode(True)
         tm.set_random_device_seed(0)
+
+        weather = world.get_weather()
+        weather.fog_density = 80.0
+        world.set_weather(weather)
+
+
            
         spectator = world.get_spectator()
         spectator.set_transform(carla.Transform(carla.Location(x=-100,y=14,z=50),carla.Rotation(roll=0, pitch=-70,yaw=0)))

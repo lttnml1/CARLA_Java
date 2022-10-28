@@ -61,6 +61,7 @@ def main():
         distributions.append(adversary_target_speed)
         
         ce = CrossEntropy(10,.1,5,distributions)
+        """
         #ce.execute_ce_good(args)
         #ce.execute_ce_bad(args)
         print(f"CE SEARCH RUN TIME: {time.time()-program_start_time}")
@@ -74,7 +75,7 @@ def main():
         if(ans == 'y'):
             ce.demonstrate_and_label(args, 5)
         
-        
+        """
         """
         replay_path = "c:\\data\\label\\"
         #num_files = 20
@@ -94,29 +95,55 @@ def main():
         
         
         """
-        #good_files = ['20220923-124856_5_0_path.csv','20220923-125221_9_0_path.csv','20220923-125246_11_0_path.csv','20220923-132603_8_0_path.csv','20220923-132726_15_0_path.csv','20220928-110918_14_0_path.csv','20220928-110954_9_0_path.csv','20220928-111146_4_0_path.csv','20220923-131355_0_0_path.csv']
-        #bad_files = ['20220921-142425_0_1_path.csv','20220921-142756_1_1_path.csv','20220921-151430_0_1_path.csv','20220921-151518_0_1_path.csv','20220923-114847_0_1_path.csv','20220923-115057_0_1_path.csv','20220928-105905_0_1_path.csv','20220928-105914_3_1_path.csv']
+        good_files = ['20220923-124856_5_0_path.csv',
+                    '20220923-125221_9_0_path.csv',
+                    '20220923-125246_11_0_path.csv',
+                    '20220923-132603_8_0_path.csv',
+                    '20220923-132726_15_0_path.csv',
+                    '20220928-110918_14_0_path.csv',
+                    '20220928-110954_9_0_path.csv',
+                    '20220928-111146_4_0_path.csv',
+                    '20220923-131355_0_0_path.csv']
+        good_see_stop_proceed = ['20220923-132726_15_0_path.csv']
+        good_dont_assume = ['20220923-132603_8_0_path.csv']
+        good_emergency_stop = ['20220923-131355_0_0_path.csv']
+        good_files =  good_dont_assume + good_see_stop_proceed + good_emergency_stop
+
+        bad_files = ['20220921-142425_0_1_path.csv',
+                    '20220921-142756_1_1_path.csv',
+                    '20220921-151430_0_1_path.csv',
+                    '20220921-151518_0_1_path.csv',
+                    '20220923-114847_0_1_path.csv',
+                    '20220923-115057_0_1_path.csv',
+                    '20220928-105905_0_1_path.csv',
+                    '20220928-105914_3_1_path.csv']
+        
+        bad_see_stop_proceed = ['20220921-142425_0_1_path.csv']
+        bad_dont_assume = ['20220921-142756_1_1_path.csv']
+        bad_emergency_stop = ['20220928-105905_0_1_path.csv']
+        bad_files = bad_dont_assume + bad_see_stop_proceed + bad_emergency_stop
+
         #e = '20220928-110115_2_1_path.csv'
         #ce.replay(args,os.path.join("c:\\data\\label\\",e))
-        """
         counter = 0
         for file in good_files:
             print(counter, file)
             ret = ce.replay(args,os.path.join("c:\\data\\label\\",file))
             counter +=1
             if ret < 0:
-                    print("Replay cancelled by user!")
-                    return
-        time.sleep(10)
+                print("Replay cancelled by user!")
+                return
+            time.sleep(4)
+        time.sleep(5)
         counter = 0            
         for file in bad_files:
             print(counter, file)
             ret = ce.replay(args,os.path.join("c:\\data\\label\\",file))
             counter +=1
             if ret < 0:
-                    print("Replay cancelled by user!")
-                    return
-        """
+                print("Replay cancelled by user!")
+                return
+            time.sleep(4)
         
     finally:
         print(f"TOTAL RUN TIME: {time.time()-program_start_time}")

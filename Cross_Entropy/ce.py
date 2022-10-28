@@ -30,34 +30,36 @@ def main():
     program_start_time = time.time()
     
     g=0
-    while(g<gamma):
-        y=np.empty((N,n))
-        for i in range(n):
-            y_i = rng.exponential(u[i],N)
-            y[:,i] = y_i
-        
-        S = S_len(y)
+    #while(g<gamma):
+    y=np.empty((N,n))
+    for i in range(n):
+        y_i = rng.exponential(u[i],N)
+        y[:,i] = y_i
+    
+    S = S_len(y)
 
-        SS = np.sort(S)
-        SSidx = np.argsort(S)
+    SS = np.sort(S)
+    SSidx = np.argsort(S)
 
-        eidx = round((1-rho)*N)
-        g = SS[eidx]
+    eidx = round((1-rho)*N)
+    g = SS[eidx]
+    print(g)
 
-        if g>=gamma:
-            g = gamma
-            while(SS[eidx] >= g):
-                eidx-=1
-            eidx+=1
-        
-        W = np.ones(N)
-        for j in range(n):
-            W = W * np.exp(-y[:,j] * (1/u[j] - 1/v[j])) * v[j]/u[j]
-        
-        for j in range(n):
-            v[j] = np.sum(W[SSidx[eidx:N]] * y[SSidx[eidx:N],j]) / np.sum(W[SSidx[eidx:N]])
-        
-        print(f"{g:6.4f}:\t{v}\n")
+    if g>=gamma:
+        g = gamma
+        while(SS[eidx] >= g):
+            eidx-=1
+        eidx+=1
+    
+    W = np.ones(N)
+
+    for j in range(n):
+        W = W * np.exp(-y[:,j] * (1/u[j] - 1/v[j])) * v[j]/u[j]
+    
+    for j in range(n):
+        v[j] = np.sum(W[SSidx[eidx:N]] * y[SSidx[eidx:N],j]) / np.sum(W[SSidx[eidx:N]])
+    
+    print(f"{g:6.4f}:\t{v}\n")
             
             
 

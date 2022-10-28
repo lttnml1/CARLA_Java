@@ -11,6 +11,11 @@ import time
 import csv
 from shapely.geometry import Polygon
 from shapely.affinity import rotate
+import pprint
+
+#sys.path.append("C:\\Users\\m.litton_local\\CARLA_Java\\")
+sys.path.append("C:\\Users\\m.litton_local\\CARLA_Java\\carla")
+#sys.path.append("C:\\Users\\m.litton_local\\CARLA_Java\\carla\\agents")
 
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.simple_agent import SimpleAgent
@@ -121,6 +126,7 @@ class CarlaScenario(object):
 
             counter = 0
             stuck_counter = 0
+            """
             while True:
                 world.tick()
                 stuck_counter += 1
@@ -164,10 +170,13 @@ class CarlaScenario(object):
                 counter +=1
 
                 
-
+            """ 
+            while True:
+                world.tick()
         except KeyboardInterrupt:
                 flag = -1
-                print("Execute_scenario cancelled by user!")          
+                print("Execute_scenario cancelled by user!") 
+                    
         finally:
             if(not args.no_render):
                 if(bounding_boxes_draw is not None):
